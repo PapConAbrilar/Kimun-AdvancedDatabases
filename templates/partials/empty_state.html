@@ -1,0 +1,9 @@
+{% load static %}
+<div class="empty-state stagger-in">
+    <img src="{% static illustration_path %}" alt="{{ title|default:'Sin resultados' }}" class="w-48 h-48 mx-auto" style="color: var(--color-text-secondary);">
+    <h3 class="text-xl font-semibold mt-4" style="color: var(--color-text);">{{ title|default:"Sin resultados" }}</h3>
+    <p class="mt-2" style="color: var(--color-text-secondary);">{{ description|default:"No se encontraron resultados." }}</p>
+    {% if action_url %}
+    <a href="{{ action_url }}" class="btn-primary px-6 py-2 rounded-xl mt-6 inline-block">{{ action_text|default:"Comenzar" }}</a>
+    {% endif %}
+</div>

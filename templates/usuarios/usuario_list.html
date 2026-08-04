@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Gestión de Usuarios - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Usuarios</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold">Gestión de Usuarios</h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">
+                Administrar usuarios, roles y asignaciones
+            </p>
+        </div>
+        <a href="{% url 'usuarios:usuario_create' %}" class="btn-primary px-5 py-2.5 rounded-lg font-medium flex items-center gap-2">
+            <i class="bi bi-plus-lg"></i> Nuevo Usuario
+        </a>
+    </div>
+
+    {% if usuarios %}
+    <div class="hybrid-card rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr style="background-color: var(--color-bg);">
+                        <th class="text-left py-4 px-6 font-medium" style="color: var(--color-text-secondary);">Usuario</th>
+                        <th class="text-left py-4 px-6 font-medium" style="color: var(--color-text-secondary);">RUT</th>
+                        <th class="text-left py-4 px-6 font-medium" style="color: var(--color-text-secondary);">Rol</th>
+                        <th class="text-left py-4 px-6 font-medium" style="color: var(--color-text-secondary);">Cargo</th>
+                        <th class="text-left py-4 px-6 font-medium" style="color: var(--color-text-secondary);">Estado</th>
+                        <th class="text-center py-4 px-6 font-medium" style="color: var(--color-text-secondary);">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for usuario in usuarios %}
+                    <tr style="border-bottom: 1px solid var(--color-border);">
+                        <td class="py-4 px-6">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center" 
+                                     style="background-color: var(--color-primary); color: white;">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium">{{ usuario.get_full_name|default:usuario.username }}</p>
+                                    <p class="text-sm" style="color: var(--color-text-secondary);">{{ usuario.email }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-4 px-6">
+                            <span class="font-mono text-sm">{{ usuario.rut }}</span>
+                        </td>
+                        <td class="py-4 px-6">
+                            <span class="px-3 py-1 rounded-full text-xs font-medium
+                                {% if usuario.rol == 'admin' %}bg-blue-100 text-blue-800
+                                {% elif usuario.rol == 'docente' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {% if usuario.rol == 'admin' %}Administrador
+                                {% elif usuario.rol == 'docente' %}Docente
+                                {% else %}Colaborador{% endif %}
+                            </span>
+                        </td>
+                        <td class="py-4 px-6">
+                            {% if usuario.cargo %}
+                            <span style="color: var(--color-text-secondary);">{{ usuario.cargo.nombre }}</span>
+                            {% else %}
+                            <span style="color: var(--color-text-secondary);">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-6">
+                            {% if usuario.is_active %}
+                            <span class="px-2 py-1 rounded text-xs font-medium" style="background-color: var(--color-success-bg); color: var(--color-success);">Activo</span>
+                            {% else %}
+                            <span class="px-2 py-1 rounded text-xs font-medium" style="background-color: var(--color-warning-bg); color: var(--color-warning);">Inactivo</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-6">
+                            <div class="flex justify-center gap-2">
+                                <a href="{% url 'usuarios:usuario_edit' pk=usuario.pk %}" 
+                                   class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="post" action="{% url 'usuarios:usuario_delete' pk=usuario.pk %}" class="inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="p-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900" 
+                                            onclick="return confirm('¿Estás seguro de eliminar este usuario?')" title="Eliminar">
+                                        <i class="bi bi-trash" style="color: #dc2626;"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% if page_obj.has_other_pages %}
+    <div class="flex justify-center items-center gap-2 mt-6">
+        {% if page_obj.has_previous %}
+        <a href="?page=1" class="px-3 py-2 rounded-lg border hover:bg-gray-50" style="border-color: var(--color-border);">
+            <i class="bi bi-chevron-double-left"></i>
+        </a>
+        <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 rounded-lg border hover:bg-gray-50" style="border-color: var(--color-border);">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        {% endif %}
+        
+        <span class="px-4 py-2" style="color: var(--color-text-secondary);">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+        </span>
+        
+        {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 rounded-lg border hover:bg-gray-50" style="border-color: var(--color-border);">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="?page={{ page_obj.paginator.num_pages }}" class="px-3 py-2 rounded-lg border hover:bg-gray-50" style="border-color: var(--color-border);">
+            <i class="bi bi-chevron-double-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="text-center py-16">
+        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background-color: var(--color-info-bg);">
+            <i class="bi bi-people text-2xl" style="color: var(--color-info);"></i>
+        </div>
+        <h3 class="text-xl font-medium">No hay usuarios</h3>
+        <p class="mt-2" style="color: var(--color-text-secondary);">
+            Crea el primer usuario del sistema.
+        </p>
+        <a href="{% url 'usuarios:usuario_create' %}" class="btn-primary px-5 py-2.5 rounded-lg font-medium inline-block mt-4">
+            <i class="bi bi-plus-lg me-1"></i> Crear Usuario
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

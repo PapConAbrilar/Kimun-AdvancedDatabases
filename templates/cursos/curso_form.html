@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if accion == 'crear' %}Crear Curso{% else %}Editar Curso{% endif %} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if accion == 'crear' %}Crear{% else %}Editar{% endif %}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-6">
+    <h1 class="section-title">
+        <i class="bi bi-book me-2 text-primary"></i>
+        {% if accion == 'crear' %}Crear Nuevo Curso{% else %}Editar Curso{% endif %}
+    </h1>
+    <p class="mt-1 text-secondary">
+        Completa los datos del curso de capacitación
+    </p>
+</div>
+
+<!-- Formulario -->
+<div class="hybrid-card rounded-2xl p-8 max-w-2xl">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <!-- Título -->
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Título del Curso <span class="text-red-500">*</span>
+            </label>
+            {{ form.titulo }}
+            {% if form.titulo.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.titulo.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <!-- Descripción -->
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Descripción <span class="text-red-500">*</span>
+            </label>
+            {{ form.descripcion }}
+            {% if form.descripcion.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.descripcion.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <!-- Categoría -->
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                <i class="bi bi-tag me-2"></i>Categoría (opcional)
+            </label>
+            {{ form.categoria }}
+            {% if form.categoria.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.categoria.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <!-- Estado -->
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Estado
+            </label>
+            {{ form.estado }}
+            {% if form.estado.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.estado.errors.0 }}</p>
+            {% endif %}
+            <p class="mt-2 text-sm text-secondary">
+                Los cursos en borrador solo son visibles para ti. Los publicados son visibles para todos.
+            </p>
+        </div>
+
+        {% if form.docente_creador %}
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                <i class="bi bi-person-badge me-2"></i>Docente Instructor <span class="text-red-500">*</span>
+            </label>
+            {{ form.docente_creador }}
+            {% if form.docente_creador.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.docente_creador.errors.0 }}</p>
+            {% endif %}
+            <p class="mt-2 text-sm text-secondary">
+                Selecciona el docente que será el instructor oficial de este curso.
+            </p>
+        </div>
+        {% endif %}
+
+        <!-- Fecha límite -->
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                <i class="bi bi-calendar-event me-2"></i>Fecha límite (opcional)
+            </label>
+            {{ form.fecha_limite }}
+            {% if form.fecha_limite.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.fecha_limite.errors.0 }}</p>
+            {% endif %}
+            <p class="mt-2 text-sm text-secondary">
+                Define una fecha límite para completar el curso. Los usuarios inscritos recibirán recordatorios automáticos.
+            </p>
+        </div>
+        
+        <!-- Botones -->
+        <div class="flex gap-4">
+            <button type="submit" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                <i class="bi bi-check-lg me-2"></i>
+                {% if accion == 'crear' %}Crear Curso{% else %}Guardar Cambios{% endif %}
+            </button>
+            <a href="{% url 'cursos:curso_list' %}" class="btn-outline px-6 py-3 rounded-xl font-medium inline-block">
+                <i class="bi bi-x-lg me-2"></i>Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

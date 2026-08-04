@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Inscripción Múltiple - {{ curso.titulo }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.pk %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Inscripción Múltiple</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-4">
+        <a href="{% url 'cursos:curso_detail' pk=curso.pk %}" class="text-sm hover:underline" style="color: var(--color-text-secondary);">
+            <i class="bi bi-arrow-left"></i> Volver al curso
+        </a>
+        <h1 class="text-3xl font-bold mt-2">Inscripción Múltiple</h1>
+        <p class="mt-1" style="color: var(--color-text-secondary);">
+            Curso: {{ curso.titulo }}
+        </p>
+    </div>
+
+    <form method="post" id="bulkForm">
+        {% csrf_token %}
+        
+        <!-- Search -->
+        <div class="mb-6 p-4 rounded-xl" style="background-color: var(--color-bg);">
+            <div class="relative">
+                <i class="bi bi-search absolute left-3 top-1/2 transform -translate-y-1/2" style="color: var(--color-text-secondary);"></i>
+                <input type="text" name="q" value="{{ query|default:'' }}" 
+                       placeholder="Buscar por nombre, username o RUT..."
+                       class="w-full pl-10 pr-4 py-3 rounded-lg input-field"
+                       hx-get="{% url 'usuarios:inscribir_curso_bulk' curso_id=curso.pk %}"
+                       hx-trigger="keyup changed delay:500"
+                       hx-target="#userList"
+                       hx-vals='{"q": ""}'
+                       oninput="this.setAttribute('hx-vals', JSON.stringify({q: this.value}))">
+            </div>
+        </div>
+
+        {% if usuarios %}
+        <!-- Select All -->
+        <div class="mb-4 flex items-center justify-between">
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" id="selectAll" 
+                       class="w-5 h-5 rounded"
+                       style="accent-color: var(--color-primary);"
+                       onchange="toggleAll(this)">
+                <span class="font-medium">Seleccionar todos</span>
+            </label>
+            <span class="text-sm" style="color: var(--color-text-secondary);">
+                <span id="selectedCount">0</span> seleccionados
+            </span>
+        </div>
+
+        <!-- User List -->
+        <div class="hybrid-card rounded-xl p-6 mb-6">
+            <div class="space-y-3" id="userList">
+                {% for usuario in usuarios %}
+                <label class="flex items-center justify-between p-3 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" style="background-color: var(--color-bg);">
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" name="usuarios" value="{{ usuario.pk }}" 
+                               class="user-checkbox w-5 h-5 rounded"
+                               style="accent-color: var(--color-primary);"
+                               onchange="updateCount()">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center" 
+                             style="background-color: var(--color-primary); color: white;">
+                            <i class="bi bi-person"></i>
+                        </div>
+                        <div>
+                            <p class="font-medium">{{ usuario.get_full_name|default:usuario.username }}</p>
+                            <p class="text-sm" style="color: var(--color-text-secondary);">
+                                {{ usuario.rut }} · {{ usuario.cargo.nombre|default:'Sin cargo' }}
+                            </p>
+                        </div>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex justify-between items-center">
+            <a href="{% url 'cursos:curso_detail' pk=curso.pk %}" 
+               class="px-6 py-2.5 rounded-lg font-medium" style="color: var(--color-text-secondary);">
+                Cancelar
+            </a>
+            <button type="submit" class="btn-primary px-6 py-2.5 rounded-lg font-medium" id="submitBtn" disabled>
+                <i class="bi bi-person-plus me-2"></i>
+                Inscribir <span id="submitCount">0</span> usuario(s)
+            </button>
+        </div>
+        {% else %}
+        <div class="text-center py-16">
+            <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background-color: var(--color-info-bg);">
+                <i class="bi bi-people text-2xl" style="color: var(--color-info);"></i>
+            </div>
+            <h3 class="text-xl font-medium">No hay usuarios disponibles</h3>
+            <p class="mt-2" style="color: var(--color-text-secondary);">
+                Todos los colaboradores ya están inscritos en este curso.
+            </p>
+            <a href="{% url 'cursos:curso_detail' pk=curso.pk %}" 
+               class="btn-primary px-5 py-2.5 rounded-lg font-medium inline-block mt-4">
+                Volver al Curso
+            </a>
+        </div>
+        {% endif %}
+    </form>
+</div>
+
+<script>
+function toggleAll(source) {
+    const checkboxes = document.querySelectorAll('.user-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = source.checked;
+    });
+    updateCount();
+}
+
+function updateCount() {
+    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+    const count = checkboxes.length;
+    
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('submitCount').textContent = count;
+    document.getElementById('submitBtn').disabled = count === 0;
+}
+</script>
+{% endblock %}

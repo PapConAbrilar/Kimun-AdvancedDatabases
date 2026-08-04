@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Evaluaciones - {{ curso.titulo }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.pk %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Evaluaciones</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <a href="{% url 'cursos:curso_detail' pk=curso.pk %}" class="text-sm hover:underline" style="color: var(--color-text-secondary);">
+                <i class="bi bi-arrow-left"></i> Volver al curso
+            </a>
+            <h1 class="section-title text-3xl font-bold mt-2">Evaluaciones del Curso</h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">{{ curso.titulo }}</p>
+        </div>
+        {% if user.rol == 'admin' or user.rol == 'docente' %}
+        <a href="{% url 'evaluaciones:evaluacion_create' curso_pk=curso.pk %}" 
+           class="btn-primary px-5 py-2.5 rounded-lg font-medium flex items-center gap-2">
+            <i class="bi bi-plus-lg"></i> Nueva Evaluación
+        </a>
+        {% endif %}
+    </div>
+
+    {% if curso.fecha_limite %}
+    <div class="mb-6 p-4 rounded-xl flex items-center gap-3 stagger-in" style="background-color: var(--color-warning-bg); border-left: 4px solid var(--color-warning);">
+        <i class="bi bi-calendar-event text-xl" style="color: var(--color-warning);"></i>
+        <div>
+            <p class="font-medium" style="color: var(--color-warning);">Fecha límite del curso</p>
+            <p class="text-sm" style="color: var(--color-text-secondary);">{{ curso.fecha_limite|date:"d de F, Y H:i" }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if evaluaciones %}
+    <div class="grid gap-6">
+        {% for evaluacion in evaluaciones %}
+        <div class="hybrid-card rounded-xl p-6 stagger-in relative overflow-hidden group" style="animation-delay: {{ forloop.counter0|add:1 }}00ms;">
+            {% if evaluacion.intentos_del_usuario > 0 %}
+            <div class="absolute top-0 left-0 h-1 bg-green-500 w-full" style="background-color: var(--color-success);"></div>
+            {% else %}
+            <div class="absolute top-0 left-0 h-1 w-full" style="background-color: var(--color-border);"></div>
+            {% endif %}
+
+            <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+                <div class="flex-1">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h3 class="text-xl font-bold">{{ evaluacion.titulo }}</h3>
+                        {% if evaluacion.intentos_del_usuario > 0 %}
+                        <span class="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide" style="background-color: var(--color-success-bg); color: var(--color-success);">
+                            <i class="bi bi-check-circle-fill mr-1"></i> Rendido
+                        </span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                            <i class="bi bi-clock-fill mr-1"></i> Pendiente
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-x-6 gap-y-2 mt-2 text-sm" style="color: var(--color-text-secondary);">
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-card-list"></i> {{ evaluacion.preguntas.count }} preguntas
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-award"></i> {{ evaluacion.porcentaje_aprobacion }}% aprobación
+                        </span>
+                        {% if evaluacion.duracion_minutos %}
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-stopwatch"></i> {{ evaluacion.duracion_minutos }} min
+                        </span>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-4 flex flex-wrap gap-2">
+                        {% if evaluacion.max_intentos > 0 %}
+                            {% if evaluacion.intentos_del_usuario >= evaluacion.max_intentos %}
+                            <span class="px-3 py-1.5 rounded-lg text-sm font-medium border" style="background-color: var(--color-error-bg); color: var(--color-error); border-color: var(--color-error);">
+                                <i class="bi bi-x-circle"></i> Intentos agotados ({{ evaluacion.intentos_del_usuario }}/{{ evaluacion.max_intentos }})
+                            </span>
+                            {% else %}
+                            <span class="px-3 py-1.5 rounded-lg text-sm font-medium border" style="background-color: var(--color-info-bg); color: var(--color-info); border-color: var(--color-info);">
+                                <i class="bi bi-arrow-repeat"></i> Intento {{ evaluacion.intentos_del_usuario|add:1 }} de {{ evaluacion.max_intentos }}
+                            </span>
+                            {% endif %}
+                        {% else %}
+                        <span class="px-3 py-1.5 rounded-lg text-sm font-medium border" style="background-color: var(--color-secondary-bg); color: var(--color-text-secondary); border-color: var(--color-border);">
+                            <i class="bi bi-infinity"></i> Intentos ilimitados (usados: {{ evaluacion.intentos_del_usuario }})
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 w-full md:w-auto justify-end mt-4 md:mt-0">
+                    {% if user.rol == 'admin' or user.rol == 'docente' %}
+                    <a href="{% url 'evaluaciones:evaluacion_edit' pk=evaluacion.pk %}" 
+                       class="p-2.5 rounded-lg transition-colors border shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800" style="border-color: var(--color-border);" title="Editar">
+                        <i class="bi bi-pencil" style="color: var(--color-text-primary);"></i>
+                    </a>
+                    <form action="{% url 'evaluaciones:evaluacion_delete' pk=evaluacion.pk %}" method="post" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="p-2.5 rounded-lg transition-colors border shadow-sm hover:bg-red-50 dark:hover:bg-red-900/30" style="border-color: var(--color-border);"
+                                onclick="return confirm('¿Eliminar esta evaluación?')" title="Eliminar">
+                            <i class="bi bi-trash" style="color: var(--color-error);"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    
+                    {% if evaluacion.max_intentos == 0 or evaluacion.intentos_del_usuario < evaluacion.max_intentos %}
+                    <a href="{% url 'evaluaciones:tomar_evaluacion' pk=evaluacion.pk %}" 
+                       class="btn-primary px-6 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 shadow-md hover:-translate-y-0.5 transition-transform">
+                        <i class="bi bi-pencil-square"></i> 
+                        {% if evaluacion.intentos_del_usuario > 0 %}Reintentar{% else %}Rendir Evaluación{% endif %}
+                    </a>
+                    {% else %}
+                    <button disabled class="px-6 py-2.5 rounded-lg font-medium flex items-center justify-center gap-2 cursor-not-allowed opacity-60" style="background-color: var(--color-border); color: var(--color-text-secondary);">
+                        <i class="bi bi-lock-fill"></i> Bloqueado
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    {% url 'evaluaciones:evaluacion_create' curso_pk=curso.pk as create_url %}
+    {% if user.rol == 'admin' or user.rol == 'docente' %}
+    {% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-evaluations.svg' title='Aún no hay evaluaciones' description='Este curso no tiene evaluaciones programadas en este momento.' action_url=create_url action_text='Crear Primera Evaluación' %}
+    {% else %}
+    {% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-evaluations.svg' title='Aún no hay evaluaciones' description='Este curso no tiene evaluaciones programadas en este momento. Vuelve más tarde o contacta a tu docente.' %}
+    {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

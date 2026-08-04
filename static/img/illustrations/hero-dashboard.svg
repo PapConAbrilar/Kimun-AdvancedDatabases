@@ -1,0 +1,14 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="70" y="50" width="90" height="60" rx="4" />
+  <path d="M100 110v20M80 130h40" />
+  <path d="M85 90l10-10 10 10 15-15" />
+  <circle cx="85" cy="90" r="3" fill="currentColor" />
+  <circle cx="95" cy="80" r="3" fill="currentColor" />
+  <circle cx="105" cy="90" r="3" fill="currentColor" />
+  <circle cx="120" cy="75" r="3" fill="currentColor" />
+  <path d="M40 70h20v80H40z" />
+  <path d="M45 80h10M45 95h10M45 110h10" />
+  <path d="M45 125l3 3 5-5" />
+  <circle cx="140" cy="140" r="20" />
+  <path d="M140 120v20l10 10" />
+</svg>

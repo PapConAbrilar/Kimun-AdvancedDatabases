@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Certificados Pendientes - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Certificados Pendientes</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Certificados Pendientes</h1>
+        <p class="mt-1" style="color: var(--color-text-secondary);">
+            Revisa y aprueba los certificados emitidos por la plataforma
+        </p>
+    </div>
+
+    {% if certificados %}
+    <div class="grid gap-4">
+        {% for cert in certificados %}
+        <div class="hybrid-card rounded-xl p-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-xl flex items-center justify-center text-2xl"
+                         style="background-color: var(--color-yellow-bg); color: var(--color-warning);">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold">{{ cert.curso.titulo }}</h3>
+                        <p class="text-sm" style="color: var(--color-text-secondary);">
+                            <i class="bi bi-person me-1"></i>{{ cert.usuario.get_full_name|default:cert.usuario.username }}
+                        </p>
+                        <p class="text-xs" style="color: var(--color-text-secondary);">
+                            <i class="bi bi-calendar me-1"></i>{{ cert.fecha_emision|date:"d M Y" }}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <form method="post" action="{% url 'certificados:aprobar_certificado' pk=cert.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-primary px-4 py-2 rounded-lg font-medium">
+                            <i class="bi bi-check-lg me-1"></i>Aprobar
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'certificados:rechazar_certificado' pk=cert.pk %}" class="inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-outline px-4 py-2 rounded-lg font-medium" onclick="return confirm('¿Rechazar este certificado?')">
+                            <i class="bi bi-x-lg me-1"></i>Rechazar
+                        </button>
+                    </form>
+                    <span class="text-xs px-2 py-1 rounded font-mono" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                        Pendiente
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background-color: var(--color-green-bg);">
+            <i class="bi bi-check-circle text-2xl" style="color: var(--color-success);"></i>
+        </div>
+        <h3 class="text-xl font-medium">No hay certificados pendientes</h3>
+        <p class="mt-2" style="color: var(--color-text-secondary);">
+            Todos los certificados han sido procesados.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Evento{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'calendario:calendario' %}">Calendario</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Eliminar Evento</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in max-w-md mx-auto">
+    <div class="hybrid-card rounded-2xl p-8 text-center">
+        <div class="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center" 
+             style="background-color: #fee2e2;">
+            <i class="bi bi-trash text-4xl" style="color: #dc2626;"></i>
+        </div>
+        
+        <h1 class="text-2xl font-bold mb-3" style="color: var(--color-text);">¿Eliminar Evento?</h1>
+        <p class="mb-2" style="color: var(--color-text-secondary);">
+            ¿Estás seguro de que deseas eliminar el siguiente evento?
+        </p>
+        <div class="my-6 p-4 rounded-xl" style="background-color: var(--color-bg);">
+            <p class="font-semibold text-lg mb-2" style="color: var(--color-text);">"{{ evento.titulo }}"</p>
+            <p class="text-sm" style="color: var(--color-text-secondary);">
+                <i class="bi bi-calendar-event me-1"></i>{{ evento.fecha_inicio|date:"d/m/Y H:i" }}
+            </p>
+            {% if evento.curso %}
+            <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+                <i class="bi bi-book me-1"></i>{{ evento.curso.titulo }}
+            </p>
+            {% endif %}
+            <span class="inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium" 
+                  style="background-color: {{ evento.color }}20; color: {{ evento.color }}; border: 1px solid {{ evento.color }};">
+                {{ evento.get_tipo_display }}
+            </span>
+        </div>
+        <p class="text-sm mb-6" style="color: #dc2626;">
+            <i class="bi bi-exclamation-triangle me-1"></i>Esta acción no se puede deshacer.
+        </p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex flex-col sm:flex-row justify-center gap-3">
+                <a href="{% url 'calendario:calendario' %}" class="btn-outline px-6 py-3 rounded-xl text-center font-medium">
+                    <i class="bi bi-x-lg me-2"></i>Cancelar
+                </a>
+                <button type="submit" class="px-6 py-3 rounded-xl font-medium text-white transition-all hover:opacity-90"
+                        style="background-color: #dc2626;">
+                    <i class="bi bi-trash me-2"></i>Eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

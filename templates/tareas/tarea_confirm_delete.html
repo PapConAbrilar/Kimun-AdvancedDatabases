@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Tarea - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=tarea.curso.id %}">{{ tarea.curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'tareas:tarea_list' tarea.curso.id %}">Tareas</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Eliminar</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="hybrid-card rounded-2xl p-8 text-center">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" 
+             style="background-color: #fee2e2;">
+            <i class="bi bi-exclamation-triangle text-3xl" style="color: #dc2626;"></i>
+        </div>
+        
+        <h1 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+            ¿Eliminar esta tarea?
+        </h1>
+        
+        <p class="mb-6" style="color: var(--color-text-secondary);">
+            Estás a punto de eliminar la tarea <strong>"{{ tarea.titulo }}"</strong> del curso <strong>"{{ tarea.curso.titulo }}"</strong>.
+        </p>
+        
+        <p class="mb-6 p-4 rounded-xl text-sm" style="background-color: #fef3c7; color: #92400e;">
+            <i class="bi bi-info-circle me-1"></i>
+            Esta acción no se puede deshacer. Se eliminarán todas las entregas de los estudiantes asociadas a esta tarea.
+        </p>
+        
+        <div class="flex gap-4 justify-center">
+            <form method="post">
+                {% csrf_token %}
+                <button type="submit" class="px-6 py-3 rounded-xl font-medium transition-colors" 
+                        style="background-color: #dc2626; color: white;">
+                    <i class="bi bi-trash me-2"></i>Sí, eliminar
+                </button>
+            </form>
+            <a href="{% url 'tareas:tarea_list' tarea.curso.id %}" class="btn-outline px-6 py-3 rounded-xl font-medium inline-block">
+                <i class="bi bi-x-lg me-2"></i>Cancelar
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

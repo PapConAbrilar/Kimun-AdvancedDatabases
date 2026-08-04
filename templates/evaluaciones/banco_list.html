@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}Bancos de Preguntas - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Bancos de Preguntas</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <h1 class="text-2xl font-bold" style="color: var(--color-text);">
+                <i class="bi bi-collection me-2" style="color: var(--color-primary);"></i>Bancos de Preguntas
+            </h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">
+                Gestiona tus bancos de preguntas para evaluaciones
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'evaluaciones:banco_create' %}" class="btn-primary px-4 py-2 rounded-xl text-sm font-medium">
+                <i class="bi bi-plus-lg me-1"></i>Crear Banco
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="hybrid-card rounded-2xl p-8 mb-8">
+    {% if bancos %}
+        <div class="space-y-4">
+            {% for banco in bancos %}
+            <div class="border rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800" style="border-color: var(--color-border);">
+                <div class="flex-1">
+                    <a href="{% url 'evaluaciones:banco_detail' banco.id %}" class="text-lg font-bold hover:underline" style="color: var(--color-primary);">
+                        {{ banco.nombre }}
+                    </a>
+                    <div class="flex flex-wrap gap-4 mt-2 text-sm" style="color: var(--color-text-secondary);">
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-book"></i> {{ banco.curso.titulo|default:"General" }}
+                        </span>
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-person"></i> {{ banco.creado_por.get_full_name|default:banco.creado_por.username }}
+                        </span>
+                        {% if banco.es_publico %}
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                <i class="bi bi-globe me-1"></i>Público
+                            </span>
+                        {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
+                                <i class="bi bi-lock me-1"></i>Privado
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row gap-2 text-sm">
+                    <a href="{% url 'evaluaciones:banco_detail' banco.id %}" class="btn-outline px-3 py-1.5 rounded-lg text-sm flex items-center justify-center">
+                        <i class="bi bi-eye me-1"></i> Ver
+                    </a>
+                    {% if user.rol == 'admin' or user == banco.creado_por %}
+                    <a href="{% url 'evaluaciones:banco_edit' banco.id %}" class="px-3 py-1.5 rounded-lg text-sm bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 transition-colors flex items-center justify-center border border-blue-200 dark:border-blue-800">
+                        <i class="bi bi-pencil me-1"></i> Editar
+                    </a>
+                    <a href="{% url 'evaluaciones:banco_delete' banco.id %}" class="px-3 py-1.5 rounded-lg text-sm bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center border border-red-200 dark:border-red-800">
+                        <i class="bi bi-trash me-1"></i> Eliminar
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                <i class="bi bi-collection text-3xl" style="color: var(--color-text-secondary);"></i>
+            </div>
+            <h3 class="text-lg font-medium mb-2" style="color: var(--color-text);">No hay bancos de preguntas</h3>
+            <p style="color: var(--color-text-secondary);">
+                Aún no has creado ningún banco de preguntas.
+            </p>
+            <a href="{% url 'evaluaciones:banco_create' %}" class="mt-4 inline-block btn-primary px-4 py-2 rounded-xl text-sm font-medium">
+                Crear el primer banco
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

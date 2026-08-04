@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Clases - {{ curso.titulo }} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.id %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Clases</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <a href="{% url 'cursos:curso_detail' pk=curso.id %}" class="text-sm mb-2 inline-block" style="color: var(--color-text-secondary);">
+                <i class="bi bi-arrow-left me-1"></i> Volver al curso
+            </a>
+            <h1 class="text-2xl font-bold" style="color: var(--color-text);">
+                <i class="bi bi-journal-text me-2" style="color: var(--color-primary);"></i>Clases del Curso
+            </h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">
+                {{ curso.titulo }}
+            </p>
+        </div>
+        {% if puede_editar %}
+        <a href="{% url 'cursos:clase_create' pk=curso.id %}" class="btn-primary px-4 py-2 rounded-xl text-sm">
+            <i class="bi bi-plus-lg me-1"></i>Nueva Clase
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+{% if clases_con_estado %}
+<div class="space-y-4">
+    {% for item in clases_con_estado %}
+    <div class="hybrid-card rounded-2xl p-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg"
+                     style="background-color: {% if item.completado %}var(--color-success){% else %}var(--color-primary){% endif %}; color: white;">
+                    {% if item.completado %}
+                    <i class="bi bi-check-lg"></i>
+                    {% else %}
+                    {{ item.clase.orden }}
+                    {% endif %}
+                </div>
+                <div>
+                    <h3 class="font-semibold text-lg" style="color: var(--color-text);">
+                        {{ item.clase.titulo }}
+                    </h3>
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        {% if item.completado %}
+                        <i class="bi bi-check-circle text-green-500 me-1"></i>Completada
+                        {% else %}
+                        <i class="bi bi-circle me-1"></i>Pendiente
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{% url 'cursos:clase_detail' pk=item.clase.id %}" class="btn-outline px-4 py-2 rounded-xl text-sm">
+                    <i class="bi bi-eye me-1"></i>Ver
+                </a>
+                {% if puede_editar %}
+                <a href="{% url 'cursos:clase_edit' pk=item.clase.id %}" class="btn-outline px-4 py-2 rounded-xl text-sm">
+                    <i class="bi bi-pencil me-1"></i>Editar
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hybrid-card rounded-2xl p-8 text-center">
+    <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" 
+         style="background-color: var(--color-bg);">
+        <i class="bi bi-journal-text text-3xl" style="color: var(--color-text-secondary);"></i>
+    </div>
+    <h3 class="text-lg font-semibold mb-2" style="color: var(--color-text);">No hay clases creadas</h3>
+    <p class="mb-4" style="color: var(--color-text-secondary);">
+        {% if puede_editar %}Comienza agregando la primera clase al curso.{% else %}El docente aún no ha agregado clases.{% endif %}
+    </p>
+    {% if puede_editar %}
+    <a href="{% url 'cursos:clase_create' pk=curso.id %}" class="btn-primary px-6 py-3 rounded-xl inline-flex items-center gap-2">
+        <i class="bi bi-plus-lg"></i>Crear Primera Clase
+    </a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

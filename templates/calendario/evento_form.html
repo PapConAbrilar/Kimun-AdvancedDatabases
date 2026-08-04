@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load calendario_filters %}
+
+{% block title %}{% if evento %}Editar{% else %}Crear{% endif %} Evento{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'calendario:calendario' %}">Calendario</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if evento %}Editar{% else %}Crear{% endif %} Evento</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in max-w-2xl mx-auto">
+    <h1 class="section-title">
+        {% if evento %}
+        <i class="bi bi-pencil-square me-2"></i>Editar Evento
+        {% else %}
+        <i class="bi bi-calendar-plus me-2"></i>Crear Evento
+        {% endif %}
+    </h1>
+    
+    <form method="post" class="hybrid-card rounded-2xl p-8" x-data="{ tipo: '{{ form.tipo.value|default:'' }}' }">
+        {% csrf_token %}
+        
+        <div class="space-y-6">
+            <!-- Título -->
+            <div>
+                <label class="block text-sm font-medium mb-2" for="{{ form.titulo.id_for_label }}">
+                    <i class="bi bi-type me-1"></i>{{ form.titulo.label }}
+                </label>
+                <input type="text" name="{{ form.titulo.name }}" id="{{ form.titulo.id_for_label }}"
+                       value="{{ form.titulo.value|default:'' }}"
+                       class="input-field w-full px-4 py-3 rounded-xl"
+                       placeholder="Título del evento"
+                       required>
+                {% if form.titulo.errors %}
+                <p class="text-red-500 text-sm mt-2">{{ form.titulo.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Descripción -->
+            <div>
+                <label class="block text-sm font-medium mb-2" for="{{ form.descripcion.id_for_label }}">
+                    <i class="bi bi-text-paragraph me-1"></i>{{ form.descripcion.label }}
+                </label>
+                <textarea name="{{ form.descripcion.name }}" id="{{ form.descripcion.id_for_label }}"
+                          class="input-field w-full px-4 py-3 rounded-xl"
+                          rows="4"
+                          placeholder="Descripción del evento">{{ form.descripcion.value|default:'' }}</textarea>
+                {% if form.descripcion.errors %}
+                <p class="text-red-500 text-sm mt-2">{{ form.descripcion.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Tipo -->
+            <div>
+                <label class="block text-sm font-medium mb-2" for="{{ form.tipo.id_for_label }}">
+                    <i class="bi bi-tag me-1"></i>{{ form.tipo.label }}
+                </label>
+                <select name="{{ form.tipo.name }}" id="{{ form.tipo.id_for_label }}"
+                        class="input-field w-full px-4 py-3 rounded-xl"
+                        x-model="tipo"
+                        required>
+                    {% for value, label in form.tipo.field.choices %}
+                    <option value="{{ value }}" {% if form.tipo.value == value %}selected{% endif %}>
+                        {{ label }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if form.tipo.errors %}
+                <p class="text-red-500 text-sm mt-2">{{ form.tipo.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Fecha y Hora -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2" for="{{ form.fecha_inicio.id_for_label }}">
+                        <i class="bi bi-calendar me-1"></i>{{ form.fecha_inicio.label }}
+                    </label>
+                    <input type="datetime-local" name="{{ form.fecha_inicio.name }}" id="{{ form.fecha_inicio.id_for_label }}"
+                           value="{{ form.fecha_inicio.value|default:'' }}"
+                           class="input-field w-full px-4 py-3 rounded-xl"
+                           required>
+                    {% if form.fecha_inicio.errors %}
+                    <p class="text-red-500 text-sm mt-2">{{ form.fecha_inicio.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2" for="{{ form.fecha_fin.id_for_label }}">
+                        <i class="bi bi-calendar-check me-1"></i>{{ form.fecha_fin.label }}
+                    </label>
+                    <input type="datetime-local" name="{{ form.fecha_fin.name }}" id="{{ form.fecha_fin.id_for_label }}"
+                           value="{{ form.fecha_fin.value|default:'' }}"
+                           class="input-field w-full px-4 py-3 rounded-xl">
+                    {% if form.fecha_fin.errors %}
+                    <p class="text-red-500 text-sm mt-2">{{ form.fecha_fin.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Curso -->
+            <div>
+                <label class="block text-sm font-medium mb-2" for="{{ form.curso.id_for_label }}">
+                    <i class="bi bi-book me-1"></i>{{ form.curso.label }}
+                </label>
+                <select name="{{ form.curso.name }}" id="{{ form.curso.id_for_label }}"
+                        class="input-field w-full px-4 py-3 rounded-xl">
+                    <option value="">-- Selecciona un curso (opcional) --</option>
+                    {% for curso in form.curso.field.queryset %}
+                    <option value="{{ curso.id }}" {% if form.curso.value == curso.id %}selected{% endif %}>
+                        {{ curso.titulo }}
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if form.curso.errors %}
+                <p class="text-red-500 text-sm mt-2">{{ form.curso.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <!-- Color -->
+            <div>
+                <label class="block text-sm font-medium mb-2" for="{{ form.color.id_for_label }}">
+                    <i class="bi bi-palette me-1"></i>{{ form.color.label }}
+                </label>
+                <div class="flex flex-wrap gap-3">
+                    {% for color in '#3b82f6,#ef4444,#f59e0b,#10b981,#8b5cf6,#ec4899,#6366f1,#14b8a6'|split:',' %}
+                    <label class="cursor-pointer">
+                        <input type="radio" name="{{ form.color.name }}" value="{{ color }}" 
+                               {% if form.color.value == color or not form.color.value and color == '#3b82f6' %}checked{% endif %}
+                               class="sr-only peer">
+                        <div class="w-10 h-10 rounded-full border-2 border-transparent peer-checked:border-gray-800 dark:peer-checked:border-white transition-all hover:scale-110"
+                             style="background-color: {{ color }};"></div>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% if form.color.errors %}
+                <p class="text-red-500 text-sm mt-2">{{ form.color.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if form.non_field_errors %}
+        <div class="mt-6 p-4 rounded-xl" class="mt-6 p-4 rounded-xl bg-red-50 text-red-700 border border-red-200">
+            {% for error in form.non_field_errors %}
+            <p><i class="bi bi-exclamation-triangle me-2"></i>{{ error }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <div class="flex flex-col sm:flex-row justify-end gap-3 mt-8">
+            <a href="{% url 'calendario:calendario' %}" class="btn-outline px-6 py-3 rounded-xl text-center font-medium">
+                <i class="bi bi-x-lg me-2"></i>Cancelar
+            </a>
+            <button type="submit" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                <i class="bi bi-check-lg me-2"></i>Guardar
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

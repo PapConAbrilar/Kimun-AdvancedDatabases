@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+:root {
+    --primary: #1e3a5f;
+    --primary-hover: #2d5a87;
+    --success: #198754;
+    --danger: #dc3545;
+    --warning: #ffc107;
+    --body-bg: #f8f9fa;
+}
+
+* {
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+#header {
+    background: var(--primary) !important;
+    border-bottom: none !important;
+    padding: 15px 20px;
+}
+
+#header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+}
+
+#header a {
+    color: white !important;
+    font-size: 1.1rem;
+}
+
+.module h2, .module caption {
+    background: var(--primary) !important;
+    font-size: 1.1rem;
+    padding: 12px 15px;
+}
+
+thead th {
+    background: var(--primary) !important;
+    color: white !important;
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 14px !important;
+}
+
+.row1 td, .row0 td {
+    font-size: 1rem;
+    padding: 12px !important;
+}
+
+.form-row {
+    padding: 15px;
+}
+
+label {
+    font-size: 1rem !important;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 8px;
+}
+
+input[type=text], input[type=password], input[type=email], select, textarea {
+    font-size: 1.05rem !important;
+    padding: 12px 15px !important;
+    border-radius: 8px !important;
+    border: 2px solid #dee2e6 !important;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.15) !important;
+}
+
+.submit-row button, .button, input[type=submit] {
+    font-size: 1rem !important;
+    padding: 12px 20px !important;
+    border-radius: 8px !important;
+    font-weight: 500;
+}
+
+.submit-row {
+    padding: 20px !important;
+}
+
+.vDateField, vTextField {
+    padding: 10px 12px !important;
+}
+
+.change-list .#changelist-form .results {
+    font-size: 1rem;
+}
+
+.paginator {
+    font-size: 1rem;
+    padding: 15px;
+}
+
+.object-tools a, .object-tools button {
+    font-size: 1rem;
+    padding: 10px 15px;
+    border-radius: 8px;
+}
+
+.change-form .box {
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+#user-tools {
+    font-size: 1rem;
+}
+
+#user-tools a {
+    padding: 8px 15px;
+    border-radius: 6px;
+}
+
+#user-tools a:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+@media (max-width: 768px) {
+    body {
+        font-size: 15px;
+    }
+    
+    #header {
+        padding: 10px 15px;
+    }
+    
+    #header h1 {
+        font-size: 1.2rem;
+    }
+    
+    .object-tools {
+        float: none !important;
+        margin-bottom: 10px;
+    }
+    
+    .object-tools a, .object-tools button {
+        display: block;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+    
+    input[type=text], input[type=password], input[type=email], select, textarea {
+        font-size: 16px !important;
+    }
+}

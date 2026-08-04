@@ -1,0 +1,185 @@
+@startuml
+skinparam backgroundColor #FEFECE
+skinparam classBackgroundColor #FEFECE
+skinparam classBorderColor #333333
+skinparam classArrowColor #333333
+
+package "usuarios" #LightBlue {
+    class Usuario {
+        +username: CharField
+        +email: EmailField
+        +first_name: CharField
+        +last_name: CharField
+        +rut: CharField(Unique)
+        +rol: CharField
+        +telefono: CharField
+        --
+        +clean()
+        +save()
+        +get_full_name()
+        +get_short_name()
+    }
+    
+    class AreaCargo {
+        +nombre: CharField
+        +descripcion: TextField
+        +categoria: CharField
+    }
+    
+    class Recordatorio {
+        +usuario: ForeignKey(Usuario)
+        +curso: ForeignKey(Curso)
+        +enviado: BooleanField
+        +fecha_envio: DateTimeField
+    }
+}
+
+package "cursos" #LightGreen {
+    class Categoria {
+        +nombre: CharField
+        +descripcion: TextField
+        +color: CharField
+    }
+    
+    class Curso {
+        +titulo: CharField
+        +descripcion: TextField
+        +categoria: ForeignKey(Categoria)
+        +docente_creador: ForeignKey(Usuario)
+        +estado: CharField
+        +fecha_inicio: DateTimeField
+        +fecha_fin: DateTimeField
+        +porcentaje_aprobacion: IntegerField
+        --
+        +es_completado_por(usuario)
+        +get_progreso(usuario)
+    }
+    
+    class Material {
+        +curso: ForeignKey(Curso)
+        +titulo: CharField
+        +archivo: FileField
+        +url_video: URLField
+        +orden: PositiveIntegerField
+    }
+    
+    class Clase {
+        +curso: ForeignKey(Curso)
+        +titulo: CharField
+        +contenido: RichTextField
+        +orden: PositiveIntegerField
+        --
+        +es_accesible_para(usuario)
+        +get_siguiente()
+    }
+    
+    class InscripcionCurso {
+        +usuario: ForeignKey(Usuario)
+        +curso: ForeignKey(Curso)
+        +estado: CharField
+        +fecha_inscripcion: DateTimeField
+        +fecha_completado: DateTimeField
+        --
+        +actualizar_estado()
+    }
+    
+    class ClaseCompletado {
+        +usuario: ForeignKey(Usuario)
+        +clase: ForeignKey(Clase)
+        +fecha_completado: DateTimeField
+    }
+}
+
+package "evaluaciones" #LightYellow {
+    class Evaluacion {
+        +curso: ForeignKey(Curso)
+        +titulo: CharField
+        +descripcion: TextField
+        +tiempo_limite: IntegerField
+        +intentos_permitidos: IntegerField
+        +porcentaje_aprobacion: IntegerField
+        +fecha_apertura: DateTimeField
+        +fecha_cierre: DateTimeField
+        --
+        +calcular_puntaje(respuestas)
+    }
+    
+    class Pregunta {
+        +evaluacion: ForeignKey(Evaluacion)
+        +texto: TextField
+        +puntaje: DecimalField
+        +orden: PositiveIntegerField
+    }
+    
+    class Alternativa {
+        +pregunta: ForeignKey(Pregunta)
+        +texto: CharField
+        +es_correcta: BooleanField
+    }
+    
+    class IntentoEvaluacion {
+        +usuario: ForeignKey(Usuario)
+        +evaluacion: ForeignKey(Evaluacion)
+        +fecha_inicio: DateTimeField
+        +fecha_fin: DateTimeField
+        +puntaje_obtenido: DecimalField
+        +porcentaje: DecimalField
+        +aprobado: BooleanField
+        +respuestas: JSONField
+        --
+        +calcular_resultado()
+    }
+}
+
+package "certificados" #LightPink {
+    class Certificado {
+        +usuario: ForeignKey(Usuario)
+        +curso: ForeignKey(Curso)
+        +codigo_verificacion: UUIDField
+        +fecha_emision: DateTimeField
+        +fecha_expiracion: DateTimeField
+        +pdf: FileField
+        --
+        +generar_pdf()
+        +verificar()
+    }
+}
+
+package "calendario" #LightCyan {
+    class EventoCalendario {
+        +titulo: CharField
+        +descripcion: TextField
+        +tipo: CharField
+        +curso: ForeignKey(Curso)
+        +fecha_inicio: DateTimeField
+        +fecha_fin: DateTimeField
+        +usuarios_asignados: ManyToManyField(Usuario)
+    }
+}
+
+' Relaciones
+Usuario "1" -- "*" AreaCargo : cargo >
+Usuario "1" -- "*" Recordatorio : recibe >
+Usuario "1" -- "*" InscripcionCurso : inscrito_en >
+Usuario "1" -- "*" ClaseCompletado : completa >
+Usuario "1" -- "*" IntentoEvaluacion : intenta >
+Usuario "1" -- "*" Certificado : recibe >
+
+Categoria "1" -- "*" Curso : clasifica >
+Curso "1" -- "*" Material : contiene >
+Curso "1" -- "*" Clase : contiene >
+Curso "1" -- "*" InscripcionCurso : tiene >
+Curso "1" -- "*" Evaluacion : evalua >
+Curso "1" -- "*" Certificado : emite >
+Curso "1" -- "*" EventoCalendario : programa >
+
+Clase "1" -- "*" ClaseCompletado : completada_en >
+
+Evaluacion "1" -- "*" Pregunta : contiene >
+Pregunta "1" -- "*" Alternativa : tiene >
+Evaluacion "1" -- "*" IntentoEvaluacion : registra >
+
+Usuario "1" -- "*" Curso : docente_creador >
+Usuario "1" -- "*" EventoCalendario : asignado_a >
+
+@enduml

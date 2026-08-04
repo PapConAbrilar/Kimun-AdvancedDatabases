@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Usuario - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'usuarios:usuario_list' %}">Usuarios</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Eliminar</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+    <div class="hybrid-card rounded-2xl p-8">
+        <div class="text-center">
+            <div class="w-16 h-16 mx-auto mb-6 rounded-full flex items-center justify-center" style="background-color: #fee2e2;">
+                <i class="bi bi-exclamation-triangle text-3xl" style="color: #dc2626;"></i>
+            </div>
+            
+            <h1 class="text-2xl font-bold mb-4" style="color: var(--color-text);">Confirmar Eliminación</h1>
+            
+            <p class="mb-6" style="color: var(--color-text-secondary);">
+                ¿Estás seguro de que deseas eliminar al usuario 
+                <strong style="color: var(--color-text);">{{ usuario.get_full_name|default:usuario.username }}</strong>?
+            </p>
+            
+            <div class="p-4 rounded-xl mb-6" style="background-color: var(--color-bg);">
+                <p class="text-sm" style="color: var(--color-text-secondary);">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Esta acción no se puede deshacer. Se eliminarán todas las inscripciones, evaluaciones y certificados asociados.
+                </p>
+            </div>
+            
+            <div class="flex gap-4 justify-center">
+                <a href="{% url 'usuarios:usuario_list' %}" class="btn-outline px-6 py-3 rounded-xl">
+                    <i class="bi bi-arrow-left me-2"></i>Cancelar
+                </a>
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="px-6 py-3 rounded-xl font-medium transition-colors"
+                            style="background-color: #dc2626; color: white;">
+                        <i class="bi bi-trash me-2"></i>Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

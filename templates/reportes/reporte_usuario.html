@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Reporte de Usuario - {{ usuario.get_full_name }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'reportes:dashboard_reportes' %}">Reportes</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{{ usuario.get_full_name }}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-4">
+        <a href="{% url 'reportes:dashboard_reportes' %}" class="text-sm hover:underline" style="color: var(--color-text-secondary);">
+            <i class="bi bi-arrow-left"></i> Volver a Reportes
+        </a>
+        <h1 class="text-3xl font-bold mt-2">{{ usuario.get_full_name|default:usuario.username }}</h1>
+        <p class="mt-1" style="color: var(--color-text-secondary);">Reporte detallado del usuario</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="hybrid-card rounded-xl p-5">
+            <p class="text-sm" style="color: var(--color-text-secondary);">Rol</p>
+            <p class="text-xl font-bold">
+                {% if usuario.rol == 'admin' %}Administrador
+                {% elif usuario.rol == 'docente' %}Docente
+                {% else %}Colaborador{% endif %}
+            </p>
+        </div>
+        <div class="hybrid-card rounded-xl p-5">
+            <p class="text-sm" style="color: var(--color-text-secondary);">Cursos Inscritos</p>
+            <p class="text-xl font-bold">{{ inscripciones.count }}</p>
+        </div>
+        <div class="hybrid-card rounded-xl p-5">
+            <p class="text-sm" style="color: var(--color-text-secondary);">Evaluaciones Rendidas</p>
+            <p class="text-xl font-bold">{{ intentos.count }}</p>
+        </div>
+        <div class="hybrid-card rounded-xl p-5">
+            <p class="text-sm" style="color: var(--color-text-secondary);">Certificados</p>
+            <p class="text-xl font-bold">{{ certificados.count }}</p>
+        </div>
+    </div>
+
+    <div class="hybrid-card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4">Cursos Inscritos</h2>
+        {% if inscripciones %}
+        <div class="space-y-3">
+            {% for inscripcion in inscripciones %}
+            <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: var(--color-bg);">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                        <i class="bi bi-book"></i>
+                    </div>
+                    <span class="font-medium">{{ inscripcion.curso.titulo }}</span>
+                </div>
+                <span class="px-2 py-1 rounded text-xs font-medium
+                    {% if inscripcion.estado == 'completado' %}bg-green-100 text-green-800
+                    {% elif inscripcion.estado == 'en_progreso' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {% if inscripcion.estado == 'completado' %}Completado
+                    {% elif inscripcion.estado == 'en_progreso' %}En Progreso
+                    {% else %}Asignado{% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--color-text-secondary);">No hay cursos inscritos</p>
+        {% endif %}
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="hybrid-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold mb-4">Evaluaciones</h2>
+            {% if intentos %}
+            <div class="space-y-3">
+                {% for intento in intentos %}
+                <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: var(--color-bg);">
+                    <div>
+                        <p class="font-medium">{{ intento.evaluacion.titulo }}</p>
+                        <p class="text-sm" style="color: var(--color-text-secondary);">{{ intento.fecha_intento|date:"d M Y H:i" }}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-lg font-bold {% if intento.aprobado %}text-green-600{% else %}text-red-600{% endif %}">
+                            {{ intento.puntaje_obtenido }}%
+                        </span>
+                        <p class="text-xs" style="color: var(--color-text-secondary);">
+                            {% if intento.aprobado %}Aprobado{% else %}Reprobado{% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: var(--color-text-secondary);">No hay evaluaciones rendidas</p>
+            {% endif %}
+        </div>
+
+        <div class="hybrid-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold mb-4">Certificados</h2>
+            {% if certificados %}
+            <div class="space-y-3">
+                {% for cert in certificados %}
+                <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: var(--color-bg);">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background-color: var(--color-purple-bg); color: var(--color-purple);">
+                            <i class="bi bi-award"></i>
+                        </div>
+                        <span class="font-medium">{{ cert.curso.titulo }}</span>
+                    </div>
+                    <a href="{% url 'certificados:descargar_certificado' pk=cert.pk %}" class="btn-outline px-3 py-1 rounded-lg text-sm">
+                        <i class="bi bi-download"></i>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: var(--color-text-secondary);">No hay certificados</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

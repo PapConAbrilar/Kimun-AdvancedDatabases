@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if accion == 'crear' %}Crear Clase{% else %}Editar Clase{% endif %} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.id %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:clase_list' pk=curso.id %}">Clases</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if accion == 'crear' %}Crear{% else %}Editar{% endif %}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+{{ form.media }}
+
+<div class="mb-6">
+    <h1 class="section-title">
+        <i class="bi bi-journal-text me-2 text-primary"></i>
+        {% if accion == 'crear' %}Crear Nueva Clase{% else %}Editar Clase{% endif %}
+    </h1>
+    <p class="mt-1 text-secondary">
+        {{ curso.titulo }}
+    </p>
+</div>
+
+<div class="hybrid-card rounded-2xl p-8">
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Título de la Clase <span class="text-red-500">*</span>
+            </label>
+            {{ form.titulo }}
+            {% if form.titulo.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.titulo.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Orden <span class="text-red-500">*</span>
+            </label>
+            {{ form.orden }}
+            <p class="mt-2 text-sm text-secondary">
+                El orden determina el acceso secuencial. La Clase 2 se desbloquea después de completar la Clase 1.
+            </p>
+            {% if form.orden.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.orden.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Contenido <span class="text-red-500">*</span>
+            </label>
+            {{ form.contenido }}
+            {% if form.contenido.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.contenido.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4">
+            <button type="submit" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                <i class="bi bi-check-lg me-2"></i>
+                {% if accion == 'crear' %}Crear Clase{% else %}Guardar Cambios{% endif %}
+            </button>
+            <a href="{% url 'cursos:clase_list' pk=curso.id %}" class="btn-outline px-6 py-3 rounded-xl font-medium inline-block">
+                <i class="bi bi-x-lg me-2"></i>Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

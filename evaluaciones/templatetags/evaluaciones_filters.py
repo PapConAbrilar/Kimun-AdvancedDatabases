@@ -1,0 +1,13 @@
+from django import template
+
+register = template.Library()
+
+
+@register.filter
+def get_item(dictionary, key):
+    return dictionary.get(str(key)) if dictionary else None
+
+
+@register.filter
+def get_correct_alt(alternativas):
+    return alternativas.filter(es_correcta=True).first()

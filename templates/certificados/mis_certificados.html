@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Mis Certificados - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Mis Certificados</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Mis Certificados</h1>
+        <p class="mt-1" style="color: var(--color-text-secondary);">
+            Verifica tu progreso y descarga tus certificados
+        </p>
+    </div>
+
+    {% if certificados %}
+    <div class="grid gap-4">
+        {% for item in certificados %}
+        <div class="hybrid-card rounded-xl p-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-xl flex items-center justify-center text-2xl" 
+                         style="background-color: {% if item.certificado %}var(--color-purple-bg){% else %}var(--color-bg){% endif %}; 
+                                color: {% if item.certificado %}var(--color-purple){% else %}var(--color-text-secondary){% endif %};">
+                        <i class="bi {% if item.certificado %}bi-award-fill{% else %}bi-award{% endif %}"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold">{{ item.curso.titulo }}</h3>
+                        <p class="text-sm" style="color: var(--color-text-secondary);">
+                            {% if item.certificado %}
+                                {% if item.certificado.estado == 'aprobado' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--color-success-bg); color: var(--color-success);">
+                                    <i class="bi bi-check-circle me-1"></i>Aprobado
+                                </span>
+                                {% elif item.certificado.estado == 'pendiente' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                                    <i class="bi bi-clock me-1"></i>Pendiente de aprobación
+                                </span>
+                                {% elif item.certificado.estado == 'rechazado' %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: var(--color-danger-bg); color: var(--color-danger);">
+                                    <i class="bi bi-x-circle me-1"></i>Rechazado
+                                </span>
+                                {% endif %}
+                            {% else %}
+                            <span style="color: var(--color-warning);">
+                                <i class="bi bi-clock me-1"></i>Completa las evaluaciones para obtener tu certificado
+                            </span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    {% if item.certificado.estado == 'aprobado' %}
+                    <a href="{% url 'certificados:descargar_certificado' pk=item.certificado.pk %}" 
+                       class="btn-primary px-4 py-2 rounded-lg font-medium">
+                        <i class="bi bi-download me-1"></i>Descargar PDF
+                    </a>
+                    {% elif item.certificado.estado == 'rechazado' %}
+                    <span class="text-sm" style="color: var(--color-text-secondary);">
+                        Contacta a tu docente para más información
+                    </span>
+                    {% else %}
+                    <a href="{% url 'cursos:curso_detail' pk=item.curso.pk %}" 
+                       class="btn-outline px-4 py-2 rounded-lg font-medium">
+                        <i class="bi bi-arrow-right me-1"></i>Ver Curso
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    {% url 'usuarios:mis_cursos' as mis_cursos_url %}
+    {% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-certificates.svg' title='No tienes cursos completados' description='Completa tus cursos y evaluaciones para obtener certificados.' action_url=mis_cursos_url action_text='Ver Mis Cursos' %}
+    {% endif %}
+</div>
+{% endblock %}

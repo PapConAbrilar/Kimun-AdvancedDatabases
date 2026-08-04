@@ -1,0 +1,121 @@
+@startuml
+skinparam componentStyle rectangle
+skinparam backgroundColor #FEFECE
+
+package "Capa de Presentación" #LightBlue {
+    [Django Templates] as Templates
+    [Static Assets] as Static
+    note right of Templates
+      - Base templates
+      - Course templates  
+      - User templates
+      - Evaluation templates
+      - Certificate templates
+    end note
+    note right of Static
+      - CSS (Tailwind)
+      - JavaScript (Alpine.js)
+      - HTMX
+      - Bootstrap Icons
+    end note
+}
+
+package "Capa de Aplicación" #LightGreen {
+    [cursos App] as CursosApp
+    [usuarios App] as UsersApp
+    [evaluaciones App] as EvalApp
+    [certificados App] as CertApp
+    [calendario App] as CalApp
+    [anuncios App] as AnuncApp
+    [reportes App] as ReportApp
+    
+    note right of CursosApp
+      Models: Curso, Clase, Material,
+      InscripcionCurso, ClaseCompletado
+      Views: Course CRUD, Enrollment
+    end note
+    
+    note right of EvalApp
+      Models: Evaluacion, Pregunta,
+      Alternativa, IntentoEvaluacion
+      Views: Take evaluation, Results
+    end note
+}
+
+package "Capa de Framework" #LightYellow {
+    [Django Core] as Django
+    [Django ORM] as ORM
+    [Django Auth] as Auth
+    [Django Admin] as Admin
+    
+    note right of Django
+      - Settings
+      - URL Routing
+      - Middleware
+      - Request/Response
+    end note
+}
+
+package "Capa de Datos" #LightPink {
+    database "SQLite (Dev)" as SQLite
+    database "PostgreSQL (Prod)" as Postgres
+    
+    note right of SQLite
+      Desarrollo local
+      db.sqlite3
+    end note
+    
+    note right of Postgres
+      Producción
+      PostgreSQL 14+
+    end note
+}
+
+package "Servicios Externos" #LightCyan {
+    [WeasyPrint] as PDF
+    [Email Backend] as Email
+    [File Storage] as Storage
+}
+
+' Relaciones de Presentación
+Templates ..> Django : usa
+Static ..> Templates : incluye
+
+' Relaciones de Aplicación
+CursosApp ..> Django : importa
+UsersApp ..> Django : importa
+EvalApp ..> Django : importa
+CertApp ..> Django : importa
+CalApp ..> Django : importa
+AnuncApp ..> Django : importa
+ReportApp ..> Django : importa
+
+' Dependencias entre Apps
+EvalApp ..> CursosApp : usa Curso
+CertApp ..> CursosApp : usa Curso
+CertApp ..> EvalApp : usa IntentoEvaluacion
+CalApp ..> CursosApp : usa Curso
+ReportApp ..> CursosApp : usa Curso
+ReportApp ..> UsersApp : usa Usuario
+ReportApp ..> EvalApp : usa Evaluacion
+
+' Relaciones con Framework
+CursosApp ..> ORM : models
+UsersApp ..> ORM : models
+EvalApp ..> ORM : models
+CertApp ..> ORM : models
+CalApp ..> ORM : models
+AnuncApp ..> ORM : models
+All ..> Auth : authentication
+Admin ..> All : gestiona
+
+' Relaciones con Datos
+ORM ..> SQLite : conecta
+ORM ..> Postgres : conecta
+
+' Relaciones con Servicios
+CertApp ..> PDF : genera
+AnuncApp ..> Email : envía
+All ..> Storage : archivos
+
+@enduml

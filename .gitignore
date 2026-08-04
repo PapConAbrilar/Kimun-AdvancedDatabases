@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+/staticfiles/
+/media/
+*.pot
+*.pyc
+local_settings.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.vercel.local
+
+# Celery
+celerybeat-schedule
+
+# Testing
+.coverage
+htmlcov/
+.tox/
+
+# venv
+venv/
+
+# Sisyphus
+.sisyphus/notepads/
+.sisyphus/drafts/
+.opencode/
+
+# Archived scripts
+tools/
+.vercel
+.env*.local

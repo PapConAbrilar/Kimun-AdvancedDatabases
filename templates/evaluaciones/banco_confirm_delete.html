@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Banco de Preguntas - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'evaluaciones:banco_list' %}">Bancos de Preguntas</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Eliminar Banco</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'evaluaciones:banco_list' %}" class="text-sm mb-2 inline-block" style="color: var(--color-text-secondary);">
+            <i class="bi bi-arrow-left me-1"></i> Volver a bancos
+        </a>
+    </div>
+
+    <div class="hybrid-card rounded-2xl p-8 mb-8 text-center">
+        <div class="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+            <i class="bi bi-exclamation-triangle text-4xl"></i>
+        </div>
+
+        <h1 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+            ¿Eliminar el banco "{{ banco.nombre }}"?
+        </h1>
+        
+        <div class="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-6 mb-8 text-left">
+            <p class="mb-4" style="color: var(--color-text-secondary);">
+                Estás a punto de eliminar este banco de preguntas. Esto eliminará <strong>permanentemente</strong>:
+            </p>
+            <ul class="list-disc list-inside space-y-2 mb-4" style="color: var(--color-text-secondary);">
+                <li>El banco "{{ banco.nombre }}"</li>
+                <li>Todas las preguntas asociadas ({{ banco.preguntas.count }})</li>
+                <li>Todas las alternativas de esas preguntas</li>
+            </ul>
+            <p class="text-red-600 dark:text-red-400 font-medium">
+                Esta acción no se puede deshacer. Las evaluaciones que ya usan estas preguntas no se verán afectadas en los intentos completados, pero podrían fallar en nuevos intentos.
+            </p>
+        </div>
+
+        <form method="post" class="flex items-center justify-center gap-4">
+            {% csrf_token %}
+            <a href="{% url 'evaluaciones:banco_list' %}" class="btn-outline px-6 py-2.5 rounded-xl font-medium">
+                Cancelar
+            </a>
+            <button type="submit" class="px-6 py-2.5 rounded-xl font-medium bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center shadow-lg shadow-red-500/30">
+                <i class="bi bi-trash me-2"></i>Sí, eliminar banco
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

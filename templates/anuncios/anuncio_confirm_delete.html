@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block title %}Eliminar Anuncio - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'anuncios:anuncio_list' %}">Anuncios</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'anuncios:anuncio_detail' anuncio.id %}">{{ anuncio.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Eliminar</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto">
+    <div class="hybrid-card rounded-2xl p-8 text-center border-t-4 border-t-red-500">
+        <div class="w-20 h-20 mx-auto bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
+            <i class="bi bi-exclamation-triangle text-4xl"></i>
+        </div>
+        
+        <h1 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+            ¿Eliminar anuncio?
+        </h1>
+        
+        <p class="mb-8" style="color: var(--color-text-secondary);">
+            Estás a punto de eliminar el anuncio <strong>"{{ anuncio.titulo }}"</strong>. Esta acción no se puede deshacer.
+        </p>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex justify-center gap-4">
+                <a href="{% url 'anuncios:anuncio_detail' anuncio.id %}" class="btn-outline px-6 py-2.5 rounded-xl font-medium">
+                    Cancelar
+                </a>
+                <button type="submit" class="px-6 py-2.5 rounded-xl font-medium bg-red-600 hover:bg-red-700 text-white transition-colors flex items-center gap-2">
+                    <i class="bi bi-trash"></i>
+                    Eliminar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

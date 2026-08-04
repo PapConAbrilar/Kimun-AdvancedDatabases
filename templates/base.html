@@ -1,0 +1,580 @@
+<!doctype html>
+{% load static %}
+<html lang="es" data-theme="light">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            {% block title %}Kimün - Plataforma de Capacitación{% endblock %}
+        </title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <script>
+            tailwind.config = {
+                darkMode: "class",
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            sans: ["Inter", "sans-serif"],
+                        },
+                    },
+                },
+            };
+        </script>
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <style>
+            body {
+                font-family: "Inter", sans-serif;
+                font-size: 18px;
+            }
+
+            [data-theme="light"] {
+                --color-bg: #f8f9fa;
+                --color-surface: #ffffff;
+                --color-surface-raised: #f3f4f6;
+                --color-primary: #1e3a5f;
+                --color-primary-hover: #2d5a87;
+                --color-accent: #f57c00;
+                --color-text: #1e3a5f;
+                --color-text-secondary: #6c757d;
+                --color-border: #dee2e6;
+                --color-card-hover: #f1f5f9;
+                --color-success: #16a34a;
+                --color-success-bg: rgba(22, 163, 74, 0.15);
+                --color-info: #2563eb;
+                --color-info-bg: rgba(37, 99, 235, 0.15);
+                --color-warning: #d97706;
+                --color-warning-bg: rgba(217, 119, 6, 0.15);
+                --color-purple: #9333ea;
+                --color-purple-bg: rgba(147, 51, 234, 0.15);
+                --color-pink: #db2777;
+                --color-pink-bg: rgba(219, 39, 119, 0.15);
+                --gradient-start: #1e3a5f;
+                --gradient-end: #3b82f6;
+            }
+
+            [data-theme="dark"] {
+                --color-bg: #0a0f1a;
+                --color-surface: #111827;
+                --color-surface-raised: #1f2937;
+                --color-primary: #3b82f6;
+                --color-primary-hover: #60a5fa;
+                --color-accent: #f59e0b;
+                --color-text: #f9fafb;
+                --color-text-secondary: #9ca3af;
+                --color-border: #374151;
+                --color-card-hover: #1f2937;
+                --color-success: #4ade80;
+                --color-success-bg: rgba(74, 222, 128, 0.2);
+                --color-info: #60a5fa;
+                --color-info-bg: rgba(96, 165, 250, 0.2);
+                --color-warning: #fbbf24;
+                --color-warning-bg: rgba(251, 191, 36, 0.2);
+                --color-purple: #a78bfa;
+                --color-purple-bg: rgba(167, 139, 250, 0.2);
+                --color-pink: #f472b6;
+                --color-pink-bg: rgba(244, 114, 182, 0.2);
+                --gradient-start: #1e3a5f;
+                --gradient-end: #0f172a;
+            }
+
+            [data-theme="dark"] {
+                .hover\:bg-gray-100:hover,
+                .hover\:bg-gray-50:hover {
+                    background-color: var(--color-card-hover) !important;
+                }
+
+                .bg-gray-50 { background-color: var(--color-surface) !important; }
+                .bg-gray-100 { background-color: var(--color-surface-raised) !important; }
+
+                .text-gray-500 { color: var(--color-text-secondary) !important; }
+                .text-gray-600 { color: var(--color-text-secondary) !important; }
+                .text-gray-700 { color: var(--color-text) !important; }
+                .text-gray-800 { color: var(--color-text) !important; }
+                .text-gray-900 { color: var(--color-text) !important; }
+
+                .border-gray-200 { border-color: var(--color-border) !important; }
+                .border-gray-300 { border-color: var(--color-border) !important; }
+
+                input.bg-gray-50,
+                input.bg-gray-100,
+                textarea.bg-gray-50,
+                textarea.bg-gray-100 {
+                    background-color: var(--color-surface) !important;
+                    color: var(--color-text) !important;
+                    border-color: var(--color-border) !important;
+                }
+            }
+
+            body {
+                background-color: var(--color-bg);
+                color: var(--color-text);
+            }
+
+            .hybrid-card {
+                background-color: var(--color-surface);
+                border: 1px solid var(--color-border);
+                transition: all 0.3s ease;
+            }
+            .hybrid-card:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.15);
+                background-color: var(--color-card-hover);
+            }
+            [data-theme="dark"] .hybrid-card:hover {
+                box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+                background-color: var(--color-surface-raised);
+            }
+
+            .btn-primary {
+                background-color: var(--color-primary);
+                color: white;
+                transition: all 0.2s ease;
+            }
+            .btn-primary:hover {
+                background-color: var(--color-primary-hover);
+                transform: translateY(-1px);
+            }
+
+            .btn-outline {
+                border: 2px solid var(--color-primary);
+                color: var(--color-primary);
+                background: transparent;
+                transition: all 0.2s ease;
+            }
+            .btn-outline:hover {
+                background-color: var(--color-primary);
+                color: white;
+            }
+
+            .input-field {
+                background-color: var(--color-surface);
+                border: 2px solid var(--color-border);
+                color: var(--color-text);
+                transition: border-color 0.2s ease;
+            }
+            .input-field:focus {
+                outline: none;
+                border-color: var(--color-primary);
+            }
+            .input-field::placeholder {
+                color: var(--color-text-secondary);
+            }
+
+            .nav-link {
+                position: relative;
+                color: var(--color-text-secondary);
+                transition: color 0.2s ease;
+            }
+            .nav-link:hover {
+                color: var(--color-text);
+            }
+            .nav-link::after {
+                content: "";
+                position: absolute;
+                bottom: -4px;
+                left: 0;
+                width: 0;
+                height: 2px;
+                background: var(--color-primary);
+                transition: width 0.3s ease;
+            }
+            .nav-link:hover::after {
+                width: 100%;
+            }
+            .nav-link.active {
+                color: var(--color-primary);
+                font-weight: 600;
+            }
+            .nav-link.active::after {
+                width: 100%;
+            }
+
+            .fade-in {
+                animation: fadeIn 0.5s ease-out forwards;
+                opacity: 0;
+            }
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            .stagger-1 {
+                animation-delay: 0.1s;
+            }
+            .stagger-2 {
+                animation-delay: 0.2s;
+            }
+            .stagger-3 {
+                animation-delay: 0.3s;
+            }
+            .stagger-4 {
+                animation-delay: 0.4s;
+            }
+        </style>
+        <link rel="stylesheet" href="{% static 'css/kimun.css' %}" />
+        <script>
+            (function () {
+                const stored = localStorage.getItem("kimun-theme") || "light";
+                document.documentElement.setAttribute("data-theme", stored);
+                if (stored === "dark") {
+                    document.documentElement.classList.add("dark");
+                }
+            })();
+
+            function toggleTheme() {
+                const html = document.documentElement;
+                const current = html.getAttribute("data-theme");
+                const newTheme = current === "light" ? "dark" : "light";
+
+                html.setAttribute("data-theme", newTheme);
+                localStorage.setItem("kimun-theme", newTheme);
+
+                if (newTheme === "dark") {
+                    html.classList.add("dark");
+                } else {
+                    html.classList.remove("dark");
+                }
+            }
+
+            function toggleMobileMenu() {
+                const menu = document.getElementById("mobile-menu");
+                const btn = document.getElementById("mobile-menu-btn");
+                const icon = btn.querySelector("i");
+
+                if (menu.classList.contains("hidden")) {
+                    menu.classList.remove("hidden");
+                    icon.classList.remove("bi-list");
+                    icon.classList.add("bi-x");
+                } else {
+                    menu.classList.add("hidden");
+                    icon.classList.remove("bi-x");
+                    icon.classList.add("bi-list");
+                }
+            }
+        </script>
+        {% block extra_head %}{% endblock %}
+    </head>
+    <body class="min-h-screen flex flex-col">
+        <header
+            class="sticky top-0 z-50 border-b"
+            style="
+                background-color: var(--color-surface);
+                border-color: var(--color-border);
+            "
+        >
+            <div class="max-w-6xl mx-auto px-4 md:px-6 py-4">
+                <div class="flex justify-between items-center">
+<a
+                        href="{% url 'inicio' %}"
+                        class="flex items-center gap-2 group"
+                    >
+                        <img
+                            src="{% static 'alumco.png' %}"
+                            alt="ALUMCO"
+                            class="h-14 w-32 object-contain rounded-lg"
+                            style="max-width: 180px"
+                        />
+                    </a>
+
+                    <button
+                        id="mobile-menu-btn"
+                        class="xl:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                        onclick="toggleMobileMenu()"
+                    >
+                        <i
+                            class="bi bi-list text-2xl"
+                            style="color: var(--color-text)"
+                        ></i>
+                        </button>
+
+                    <nav class="hidden xl:flex items-center gap-8">
+                        {% if user.rol != 'colaborador' %}
+                        <a
+                            href="{% url 'cursos:curso_list' %}"
+                            class="nav-link text-base font-medium {% if request.path|slice:':8' == '/cursos/' %}active{% endif %}"
+                            >Cursos</a
+                        >
+                        {% endif %}
+                        <a
+                            href="{% url 'calendario:calendario' %}"
+                            class="nav-link text-base font-medium {% if request.path|slice:':12' == '/calendario/' %}active{% endif %}"
+                            >Calendario</a
+                        >
+                        {% if user.rol == 'colaborador' or user.rol == 'docente' %}
+                        <a
+                            href="{% url 'usuarios:mis_cursos' %}"
+                            class="nav-link text-base font-medium {% if request.path|slice:':12' == '/mis-cursos' %}active{% endif %}"
+                            >Mis Cursos</a
+                        >
+                        {% endif %}
+                        <a
+                            href="{% url 'certificados:mis_certificados' %}"
+                            class="nav-link text-base font-medium {% if '/certificados' in request.path and 'mis' in request.path %}active{% endif %}"
+                            >Certificados</a
+                        >
+                        <div x-data="{ open: false }" class="relative">
+                            <button @click="open = !open" class="nav-link text-base font-medium flex items-center gap-1">
+                                Más <i class="bi bi-three-dots text-xs"></i>
+                            </button>
+                            <div x-show="open" @click.outside="open = false" x-transition class="absolute right-0 mt-2 w-48 rounded-lg shadow-lg py-2 z-50 flex flex-col" style="background-color: var(--color-surface); border: 1px solid var(--color-border); display: none;">
+                                {% if user.rol == 'admin' %}
+                                <a
+                                    href="{% url 'cursos:categoria_list' %}"
+                                    class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    style="color: var(--color-text);"
+                                    >Categorías</a
+                                >
+                                <a
+                                    href="{% url 'reportes:dashboard_reportes' %}"
+                                    class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    style="color: var(--color-text);"
+                                    >Reportes</a
+                                >
+                                <a
+                                    href="{% url 'usuarios:usuario_list' %}"
+                                    class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    style="color: var(--color-text);"
+                                    >Usuarios</a
+                                >
+                                {% endif %}
+                                {% if user.rol == 'admin' or user.rol == 'docente' %}
+                                <a
+                                    href="{% url 'certificados:certificados_pendientes' %}"
+                                    class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                                    style="color: var(--color-text);"
+                                >
+                                    <i class="bi bi-hourglass-split me-2"></i>Certificados Pendientes
+                                </a>
+                                {% endif %}
+                                <a
+                                    href="{% url 'anuncios:anuncio_list' %}"
+                                    class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                                    style="color: var(--color-text);"
+                                    ><i class="bi bi-bell"></i> Anuncios</a
+                                >
+                            </div>
+                        </div>
+                    </nav>
+
+                    <div class="hidden xl:flex items-center gap-4">
+                        <button
+                            onclick="toggleTheme()"
+                            class="p-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-slate-700"
+                            title="Cambiar modo claro/oscuro"
+                        >
+                            <i
+                                class="bi bi-moon-stars-fill dark:hidden text-lg"
+                                style="color: var(--color-text-secondary)"
+                            ></i>
+                            <i
+                                class="bi bi-sun-fill hidden dark:block text-lg"
+                                style="color: var(--color-accent)"
+                            ></i>
+                        </button>
+
+                        <div
+                            class="h-6 w-px"
+                            style="background-color: var(--color-border)"
+                        ></div>
+
+                        <!-- User -->
+                        <div class="flex items-center gap-2">
+                            <a
+                                href="{% url 'usuarios:perfil' %}"
+                                class="p-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-slate-700"
+                                title="Mi Perfil"
+                                style="color: var(--color-text-secondary)"
+                            >
+                                <i class="bi bi-person-circle text-lg"></i>
+                            </a>
+                            <div
+                                class="h-6 w-px"
+                                style="background-color: var(--color-border)"
+                            ></div>
+                            <form
+                                action="{% url 'usuarios:logout' %}"
+                                method="post"
+                            >
+                                {% csrf_token %}
+                                <button
+                                    type="submit"
+                                    class="p-2.5 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-slate-700"
+                                    title="Cerrar sesión"
+                                    style="color: var(--color-text-secondary)"
+                                >
+                                    <i class="bi bi-box-arrow-right"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                id="mobile-menu"
+                class="hidden xl:hidden border-t"
+                style="
+                    border-color: var(--color-border);
+                    background-color: var(--color-surface);
+                "
+            >
+                <div class="px-4 py-4 space-y-2">
+                    {% if user.rol != 'colaborador' %}
+                    <a
+                        href="{% url 'cursos:curso_list' %}"
+                        class="block py-3 px-4 rounded-lg {% if request.path|slice:':8' == '/cursos/' %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-book me-2"></i>Cursos
+                    </a>
+                    {% endif %}
+                    <a
+                        href="{% url 'calendario:calendario' %}"
+                        class="block py-3 px-4 rounded-lg {% if request.path|slice:':12' == '/calendario/' %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-calendar me-2"></i>Calendario
+                    </a>
+                    {% if user.rol in 'colaborador docente' %}
+                    <a
+                        href="{% url 'usuarios:mis_cursos' %}"
+                        class="block py-3 px-4 rounded-lg {% if request.path|slice:':12' == '/mis-cursos' %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-mortarboard me-2"></i>Mis Cursos
+                    </a>
+                    {% endif %}
+                    <a
+                        href="{% url 'certificados:mis_certificados' %}"
+                        class="block py-3 px-4 rounded-lg {% if '/certificados' in request.path and 'mis' in request.path %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-award me-2"></i>Certificados
+                    </a>
+                    {% if user.rol == 'admin' %}
+                    <a
+                        href="{% url 'usuarios:usuario_list' %}"
+                        class="block py-3 px-4 rounded-lg {% if '/usuarios/' in request.path and request.path != '/perfil/' %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-people me-2"></i>Usuarios
+                    </a>
+                    <a
+                        href="{% url 'cursos:categoria_list' %}"
+                        class="block py-3 px-4 rounded-lg {% if '/categorias' in request.path %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-tag me-2"></i>Categorías
+                    </a>
+                    <a
+                        href="{% url 'reportes:dashboard_reportes' %}"
+                        class="block py-3 px-4 rounded-lg {% if '/reportes' in request.path %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-bar-chart me-2"></i>Reportes
+                    </a>
+                    {% endif %}
+                    <a
+                        href="{% url 'anuncios:anuncio_list' %}"
+                        class="block py-3 px-4 rounded-lg {% if '/anuncios' in request.path %}bg-gray-100 dark:bg-slate-700{% endif %}"
+                        style="color: var(--color-text)"
+                    >
+                        <i class="bi bi-bell me-2"></i>Anuncios
+                    </a>
+                    <div
+                        class="pt-2 border-t"
+                        style="border-color: var(--color-border)"
+                    >
+                        <a
+                            href="{% url 'usuarios:perfil' %}"
+                            class="block py-3 px-4 rounded-lg"
+                            style="color: var(--color-text)"
+                        >
+                            <i class="bi bi-person-circle me-2"></i>Mi Perfil
+                        </a>
+                        <form
+                            action="{% url 'usuarios:logout' %}"
+                            method="post"
+                            class="block"
+                        >
+                            {% csrf_token %}
+                            <button
+                                type="submit"
+                                class="w-full text-left py-3 px-4 rounded-lg"
+                                style="color: var(--color-text)"
+                            >
+                                <i class="bi bi-box-arrow-right me-2"></i>Cerrar
+                                sesión
+                            </button>
+                        </form>
+                    </div>
+                    <div
+                        class="pt-2 border-t"
+                        style="border-color: var(--color-border)"
+                    >
+                        <button
+                            onclick="toggleTheme()"
+                            class="block w-full text-left py-3 px-4 rounded-lg"
+                            style="color: var(--color-text)"
+                        >
+                            <i class="bi bi-moon-stars me-2"></i>Cambiar tema
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-6xl mx-auto px-6 py-8 w-full">
+            {% block breadcrumbs %}{% endblock %}
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="mb-4 p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer
+            class="py-6 text-center border-t"
+            style="
+                background-color: var(--color-surface);
+                border-color: var(--color-border);
+            "
+        >
+            <p class="text-base" style="color: var(--color-text-secondary)">
+                © 2026 Kimün - Plataforma de Capacitación ONG ALUMCO
+            </p>
+        </footer>
+
+        <link rel="stylesheet" href="{% static 'css/toast.css' %}" />
+        <div id="toast-container"></div>
+        <script src="{% static 'js/toast.js' %}"></script>
+
+        {% if messages %}
+        <script>
+            {% for message in messages %}
+            showToast('{{ message|escapejs }}', '{% if message.tags == "error" %}error{% elif message.tags == "warning" %}warning{% else %}success{% endif %}');
+            {% endfor %}
+        </script>
+        {% endif %} {% block extra_js %}{% endblock %}
+    </body>
+</html>

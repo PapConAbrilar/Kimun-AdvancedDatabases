@@ -1,0 +1,85 @@
+@startuml
+start
+
+:Colaborador solicita
+inscripción a curso;
+
+if (¿Inscripción aprobada?) then (Sí)
+    :Sistema crea
+    InscripcionCurso;
+    
+    :Asignar clases
+    secuenciales;
+    
+    while (¿Todas las clases
+    completadas?) is (No)
+        :Mostrar clase N;
+        :Colaborador estudia
+        contenido;
+        :Marcar clase N
+        como completada;
+        :Desbloquear clase N+1;
+    endwhile (Sí)
+    
+    :Todas las clases
+    completadas;
+    
+    fork
+        :Mostrar evaluación
+        disponible;
+    fork again
+        :Notificar docente
+        progreso completado;
+    end fork
+    
+    repeat
+        :Colaborador toma
+        evaluación;
+        :Sistema califica
+        automáticamente;
+        :Mostrar resultado;
+        
+        if (¿Aprobó?) then (Sí)
+            :Generar certificado
+            automáticamente;
+            
+            fork
+                :Guardar PDF en
+                servidor;
+            fork again
+                :Enviar email con
+                certificado;
+            fork again
+                :Notificar en
+                dashboard;
+            end fork
+            
+            :Curso completado
+            exitosamente;
+            stop
+        else (No)
+            :Mostrar errores
+            pregunta por pregunta;
+            
+            if (¿Reintentos
+            disponibles?) then (Sí)
+                :Permitir nuevo
+                intento;
+            else (No)
+                :Curso no completado;
+                :Notificar docente
+                para revisión;
+                stop
+            endif
+        endif
+    repeat while (Reintentando) is (Sí)
+    
+else (No)
+    :Notificar rechazo
+    de inscripción;
+    :Mostrar motivo;
+    stop
+endif
+
+stop
+@enduml

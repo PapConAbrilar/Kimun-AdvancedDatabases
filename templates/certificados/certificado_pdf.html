@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Certificado - {{ curso.titulo }}</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            width: 297mm;
+            height: 210mm;
+            background-color: #FDFBF7;
+            text-align: center;
+            padding: 25px;
+        }
+        
+        .certificate-wrapper {
+            background: #FFFFFF;
+            width: 100%;
+            height: 100%;
+            padding: 12px;
+            border: 2px solid #0F2439;
+            position: relative;
+        }
+
+        .certificate-inner {
+            width: 100%;
+            height: 100%;
+            border: 3px solid #D4AF37;
+            padding: 30px 40px;
+            position: relative;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        /* Ornamental Corners using CSS borders only */
+        .corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 2px solid #0F2439;
+        }
+        .corner-tl { top: -6px; left: -6px; border-right: none; border-bottom: none; }
+        .corner-tr { top: -6px; right: -6px; border-left: none; border-bottom: none; }
+        .corner-bl { bottom: -6px; left: -6px; border-right: none; border-top: none; }
+        .corner-br { bottom: -6px; right: -6px; border-left: none; border-top: none; }
+
+        /* Header section */
+        .header {
+            padding-bottom: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .org-logo {
+            margin: 0 auto 10px auto;
+            width: 60px;
+            height: 60px;
+            border: 2px solid #D4AF37;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 56px;
+        }
+        
+        .org-logo-text {
+            font-size: 28px;
+            font-weight: bold;
+            color: #0F2439;
+            font-family: 'Times New Roman', serif;
+        }
+        
+        .org-name-top {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            color: #D4AF37;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        
+        .title {
+            font-family: 'Times New Roman', serif;
+            font-size: 40px;
+            font-weight: bold;
+            color: #0F2439;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            margin-bottom: 3px;
+        }
+        
+        .subtitle {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-size: 16px;
+            color: #555555;
+            margin-bottom: 10px;
+        }
+        
+        /* Content section */
+        .content {
+            padding: 15px 0;
+            margin: 10px 0;
+        }
+        
+        .certifies-text {
+            font-size: 13px;
+            color: #666666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        
+        .student-name {
+            font-family: 'Times New Roman', serif;
+            font-size: 32px;
+            font-weight: bold;
+            color: #0F2439;
+            margin: 6px 0;
+            padding-bottom: 3px;
+            border-bottom: 1px solid #D4AF37;
+            display: inline-block;
+            width: 70%;
+        }
+        
+        .course-text {
+            font-size: 13px;
+            color: #666666;
+            margin: 12px 0 6px 0;
+        }
+        
+        .course-title {
+            font-family: 'Times New Roman', serif;
+            font-size: 22px;
+            font-weight: bold;
+            color: #0F2439;
+            margin: 0 auto;
+            width: 80%;
+            line-height: 1.3;
+        }
+        
+        /* Footer section - three columns using inline-block */
+        .footer {
+            margin-top: 25px;
+            padding-top: 15px;
+        }
+        
+        .footer-col {
+            display: inline-block;
+            width: 30%;
+            vertical-align: bottom;
+            text-align: center;
+            padding: 0 10px;
+        }
+        
+        .signature-block {
+            text-align: center;
+        }
+        
+        .signature-line {
+            border-bottom: 1px solid #0F2439;
+            margin-bottom: 5px;
+            height: 30px;
+        }
+        
+        .signature-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: #0F2439;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .signature-role {
+            font-size: 10px;
+            color: #666666;
+            margin-top: 2px;
+        }
+        
+        .date-block {
+            text-align: center;
+        }
+        
+        .date-text {
+            font-size: 12px;
+            color: #0F2439;
+            font-weight: 600;
+            border-bottom: 1px solid #0F2439;
+            padding-bottom: 3px;
+            margin-bottom: 5px;
+            display: inline-block;
+            width: 80%;
+        }
+
+        /* Seal - simple CSS-based */
+        .seal {
+            text-align: center;
+            margin: 0 auto;
+        }
+        
+        .seal-circle {
+            width: 60px;
+            height: 60px;
+            border: 2px solid #D4AF37;
+            border-radius: 50%;
+            margin: 0 auto;
+            text-align: center;
+            line-height: 56px;
+        }
+        
+        .seal-text {
+            font-size: 28px;
+            color: #D4AF37;
+        }
+        
+        .verification-code {
+            font-size: 8px;
+            color: #999999;
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+            margin-top: 10px;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="certificate-wrapper">
+        <div class="certificate-inner">
+            <div class="corner corner-tl"></div>
+            <div class="corner corner-tr"></div>
+            <div class="corner corner-bl"></div>
+            <div class="corner corner-br"></div>
+            
+            <div class="header">
+                <div class="org-logo">
+                    <span class="org-logo-text">A</span>
+                </div>
+                <div class="org-name-top">ONG ALUMCO - Adultos Mayores en Confianza</div>
+                <div class="title">Certificado</div>
+                <div class="subtitle">de finalización y aprovechamiento</div>
+            </div>
+            
+            <div class="content">
+                <div class="certifies-text">Por la presente se certifica que</div>
+                <div>
+                    <span class="student-name">{{ nombre_usuario|default:"ONG ALUMCO" }}</span>
+                </div>
+                <div class="course-text">ha completado satisfactoriamente el curso de capacitación denominado</div>
+                <div class="course-title">"{{ curso.titulo }}"</div>
+            </div>
+            
+            <div class="footer">
+                <div class="footer-col">
+                    <div class="date-block">
+                        <div class="date-text">{{ fecha }}</div>
+                        <div class="signature-role">Fecha de Emisión</div>
+                    </div>
+                </div>
+                
+                <div class="footer-col">
+                    <div class="seal">
+                        <div class="seal-circle">
+                            <span class="seal-text">&#9733;</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer-col">
+                    <div class="signature-block">
+                        <div class="signature-line"></div>
+                        <div class="signature-name">Dirección de Capacitación</div>
+                        <div class="signature-role">ONG ALUMCO</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="verification-code">
+                CÓDIGO DE VERIFICACIÓN: {{ curso.id }}-{{ fecha }}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

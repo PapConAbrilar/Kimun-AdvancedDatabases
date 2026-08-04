@@ -1,0 +1,113 @@
+@startuml
+skinparam backgroundColor #FEFECE
+
+node "Desarrollo Local" as Dev #LightBlue {
+    artifact "Python 3.10+" as PythonDev
+    artifact "Django 4.2" as DjangoDev
+    artifact "SQLite" as SQLiteDev
+    artifact "Virtualenv" as Venv
+    
+    node "Django Dev Server" as DevServer {
+        [cursos App] as CursosDev
+        [usuarios App] as UsersDev
+        [evaluaciones App] as EvalDev
+        [certificados App] as CertDev
+        [calendario App] as CalDev
+        [anuncios App] as AnuncDev
+        [reportes App] as ReportDev
+    }
+}
+
+node "Servidor de Producción" as Prod #LightGreen {
+    
+    node "Servidor Web (Nginx)" as Nginx {
+        artifact "Nginx 1.18+" as NginxApp
+        port "80/443" as HttpPort
+    }
+    
+    node "Application Server (Gunicorn)" as Gunicorn {
+        artifact "Gunicorn 20+" as GunicornApp
+        port "8000" as AppPort
+        
+        node "Django Application" as DjangoApp {
+            [cursos App] as CursosProd
+            [usuarios App] as UsersProd
+            [evaluaciones App] as EvalProd
+            [certificados App] as CertProd
+            [calendario App] as CalProd
+            [anuncios App] as AnuncProd
+            [reportes App] as ReportProd
+        }
+    }
+    
+    node "Base de Datos" as DBServer {
+        database "PostgreSQL 14" as Postgres
+        port "5432" as DbPort
+    }
+    
+    node "Servicios de Soporte" as Support {
+        [WeasyPrint] as WeasyProd
+        [Cairo] as Cairo
+        [Pango] as Pango
+    }
+    
+    storage "Media Storage" as Media {
+        folder "/var/www/kimun/media/" as MediaPath
+    }
+    
+    storage "Static Files" as StaticProd {
+        folder "/var/www/kimun/static/" as StaticPath
+    }
+    
+    storage "Logs" as Logs {
+        folder "/var/log/kimun/" as LogPath
+    }
+}
+
+node "Cliente Web" as Client #LightYellow {
+    artifact "Navegador" as Browser
+    artifact "JavaScript" as JSClient
+    artifact "Alpine.js" as Alpine
+}
+
+' Conexiones
+Client --> HttpPort : HTTPS
+HttpPort --> AppPort : proxy_pass
+AppPort --> DjangoApp : WSGI
+DjangoApp --> DbPort : psycopg2
+DbPort --> Postgres : SQL
+DjangoApp --> Media : archivos
+DjangoApp --> StaticProd : sirve
+DjangoApp --> Support : genera PDF
+DjangoApp --> Logs : escribe
+
+' Notas
+note right of Nginx
+  Reverse Proxy
+  - SSL termination
+  - Static file serving
+  - Load balancing (opcional)
+end note
+
+note right of Gunicorn
+  WSGI Server
+  - Workers: 4
+  - Timeout: 30s
+  - Unix socket recommended
+end note
+
+note right of Support
+  Dependencias del sistema:
+  - libcairo2
+  - libpango-1.0-0
+  - libgobject-2.0-0
+  - Necesarios para WeasyPrint
+end note
+
+note bottom of Prod
+  Sistema Operativo: Ubuntu 22.04 LTS
+  Usuario app: kimun
+  Usuario web: www-data
+end note
+
+@enduml

@@ -1,0 +1,106 @@
+@startuml
+actor Colaborador as C
+participant "Navegador" as Web
+participant "Django View" as View
+participant "Evaluacion\nModel" as Eval
+participant "IntentoEvaluacion\nModel" as Intento
+participant "Certificado\nModel" as Cert
+
+== Inicio de Evaluación ==
+
+C -> Web : GET /evaluaciones/1/
+activate Web
+
+Web -> View : request
+activate View
+
+View -> Eval : get(pk=1)
+activate Eval
+Eval --> View : evaluacion
+
+deactivate Eval
+
+View -> Intento : get_or_create(usuario, evaluacion)
+activate Intento
+Intento --> View : intento
+
+deactivate Intento
+
+View --> Web : render(template)
+deactivate View
+
+Web --> C : Mostrar evaluación
+con timer y preguntas
+deactivate Web
+
+== Colaborador Responde ==
+
+C -> Web : Responder preguntas
+activate Web
+
+C -> Web : Click "Finalizar"
+
+Web -> View : POST respuestas
+activate View
+
+View -> Eval : calcular_puntaje(respuestas)
+activate Eval
+Eval --> View : puntaje, porcentaje
+
+deactivate Eval
+
+View -> Intento : save(puntaje, porcentaje, aprobado)
+activate Intento
+Intento --> View : intento guardado
+
+deactivate Intento
+
+alt Aprobó (porcentaje >= minimo)
+    View -> Cert : create(usuario, curso, codigo)
+    activate Cert
+    Cert --> View : certificado creado
+    
+    Cert -> Cert : generar_pdf()
+    Cert --> Cert : pdf guardado
+    deactivate Cert
+    
+    View -> View : enviar_email_notificacion()
+    
+    View --> Web : redirect resultado (aprobado)
+    Web --> C : Mostrar resultado +
+    descargar certificado
+    
+else No aprobó
+    View --> Web : redirect resultado (no aprobado)
+    Web --> C : Mostrar resultado +
+    preguntas incorrectas +
+    intentos restantes
+endif
+
+deactivate View
+deactivate Web
+
+== Verificación Posterior ==
+
+C -> Web : Verificar certificado
+activate Web
+
+Web -> View : GET /certificados/verificar/
+activate View
+
+View -> Cert : verificar(codigo)
+activate Cert
+Cert --> View : valido/invalido
+
+deactivate Cert
+
+View --> Web : resultado verificacion
+
+deactivate View
+
+Web --> C : Mostrar validación
+activate Web
+
+deactivate Web
+
+@enduml

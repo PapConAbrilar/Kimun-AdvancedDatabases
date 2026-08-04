@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if form.instance.pk %}Editar{% else %}Crear{% endif %} Tarea - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.id %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'tareas:tarea_list' curso.id %}">Tareas</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if form.instance.pk %}Editar{% else %}Crear{% endif %} Tarea</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% if form.instance.pk %}{% url 'tareas:tarea_detail' form.instance.id %}{% else %}{% url 'tareas:tarea_list' curso.id %}{% endif %}" class="text-sm mb-2 inline-block text-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Volver
+    </a>
+    <h1 class="section-title">
+        <i class="bi bi-journal-plus me-2 text-primary"></i>
+        {% if form.instance.pk %}Editar Tarea{% else %}Crear Tarea{% endif %}
+    </h1>
+    <p class="mt-1 text-secondary">
+        Curso: {{ curso.titulo }}
+    </p>
+</div>
+
+<div class="hybrid-card rounded-2xl p-8 max-w-2xl">
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.media }}
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Título de la Tarea <span class="text-red-500">*</span>
+            </label>
+            <input type="text" name="{{ form.titulo.name }}" id="{{ form.titulo.id_for_label }}"
+                   value="{{ form.titulo.value|default:'' }}"
+                   class="input-field w-full px-4 py-3 rounded-xl"
+                   placeholder="Ej: Ensayo sobre Historia Antigua"
+                   required>
+            {% if form.titulo.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.titulo.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Descripción <span class="text-red-500">*</span>
+            </label>
+            <textarea name="{{ form.descripcion.name }}" id="{{ form.descripcion.id_for_label }}"
+                      class="input-field w-full px-4 py-3 rounded-xl"
+                      rows="5"
+                      placeholder="Detalla las instrucciones de la tarea..."
+                      required>{{ form.descripcion.value|default:'' }}</textarea>
+            {% if form.descripcion.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.descripcion.errors.0 }}</p>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label class="block text-base font-medium mb-2">
+                    Fecha Límite
+                </label>
+                <input type="datetime-local" name="{{ form.fecha_limite.name }}" id="{{ form.fecha_limite.id_for_label }}"
+                       value="{{ form.fecha_limite.value|default:'' }}"
+                       class="input-field w-full px-4 py-3 rounded-xl">
+                {% if form.fecha_limite.errors %}
+                <p class="mt-2 text-sm text-red-500">{{ form.fecha_limite.errors.0 }}</p>
+                {% endif %}
+            </div>
+            
+            <div>
+                <label class="block text-base font-medium mb-2">
+                    Puntaje Máximo <span class="text-red-500">*</span>
+                </label>
+                <input type="number" name="{{ form.puntaje_maximo.name }}" id="{{ form.puntaje_maximo.id_for_label }}"
+                       value="{{ form.puntaje_maximo.value|default:'100' }}"
+                       class="input-field w-full px-4 py-3 rounded-xl"
+                       min="0"
+                       required>
+                {% if form.puntaje_maximo.errors %}
+                <p class="mt-2 text-sm text-red-500">{{ form.puntaje_maximo.errors.0 }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="flex gap-4 border-t pt-6" style="border-color: var(--color-border);">
+            <button type="submit" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                <i class="bi bi-save me-2"></i>Guardar Tarea
+            </button>
+            <a href="{% if form.instance.pk %}{% url 'tareas:tarea_detail' form.instance.id %}{% else %}{% url 'tareas:tarea_list' curso.id %}{% endif %}" class="btn-outline px-6 py-3 rounded-xl font-medium inline-block text-center">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

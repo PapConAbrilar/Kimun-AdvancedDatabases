@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+
+{% block title %}{% if accion == 'crear' %}Crear Categoría{% else %}Editar Categoría{% endif %} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:categoria_list' %}">Categorías</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if accion == 'crear' %}Crear{% else %}Editar{% endif %}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="section-title">
+        <i class="bi bi-tag me-2 text-primary"></i>
+        {% if accion == 'crear' %}Crear Nueva Categoría{% else %}Editar Categoría{% endif %}
+    </h1>
+    <p class="mt-1 text-secondary">
+        Define una categoría para organizar tus cursos
+    </p>
+</div>
+
+<div class="hybrid-card rounded-2xl p-8 max-w-2xl">
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Nombre <span class="text-red-500">*</span>
+            </label>
+            {{ form.nombre }}
+            {% if form.nombre.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.nombre.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Color
+            </label>
+            <div class="flex items-center gap-4">
+                {{ form.color }}
+                {% if form.color.errors %}
+                <p class="mt-2 text-sm text-red-500">{{ form.color.errors.0 }}</p>
+                {% endif %}
+                <span class="text-sm text-secondary">
+                    Selecciona un color para identificar la categoría
+                </span>
+            </div>
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-base font-medium mb-2">
+                Descripción (opcional)
+            </label>
+            {{ form.descripcion }}
+            {% if form.descripcion.errors %}
+            <p class="mt-2 text-sm text-red-500">{{ form.descripcion.errors.0 }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="flex gap-4">
+            <button type="submit" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                <i class="bi bi-check-lg me-2"></i>
+                {% if accion == 'crear' %}Crear Categoría{% else %}Guardar Cambios{% endif %}
+            </button>
+            <a href="{% url 'cursos:categoria_list' %}" class="btn-outline px-6 py-3 rounded-xl font-medium inline-block">
+                <i class="bi bi-x-lg me-2"></i>Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

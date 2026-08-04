@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block title %}Calificar Entrega - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=tarea.curso.id %}">{{ tarea.curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'tareas:tarea_list' tarea.curso.id %}">Tareas</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'tareas:tarea_detail' tarea.id %}">{{ tarea.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Calificar</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="{% url 'tareas:tarea_detail' tarea.id %}" class="text-sm mb-2 inline-block" style="color: var(--color-text-secondary);">
+        <i class="bi bi-arrow-left me-1"></i> Volver a Tarea
+    </a>
+    <h1 class="text-2xl font-bold" style="color: var(--color-text);">
+        <i class="bi bi-check-all me-2" style="color: var(--color-primary);"></i>
+        Calificar Entrega
+    </h1>
+    <p class="mt-1" style="color: var(--color-text-secondary);">
+        Estudiante: {{ entrega.estudiante.get_full_name|default:entrega.estudiante.username }}
+    </p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl">
+    <div class="lg:col-span-2 space-y-8">
+        <div class="hybrid-card rounded-2xl p-8">
+            <h2 class="text-xl font-bold mb-4" style="color: var(--color-text);">
+                <i class="bi bi-file-earmark-text me-2" style="color: var(--color-primary);"></i>Entrega del Estudiante
+            </h2>
+            <div class="mb-6 pb-6 border-b" style="border-color: var(--color-border);">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm" style="color: var(--color-text-secondary);">Fecha de Entrega</p>
+                        <p class="font-medium" style="color: var(--color-text);">{{ entrega.fecha_entrega|date:"d M Y H:i" }}</p>
+                        {% if tarea.fecha_limite and entrega.fecha_entrega > tarea.fecha_limite %}
+                            <p class="text-xs font-semibold mt-1 text-red-500">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Entregado tarde
+                            </p>
+                        {% endif %}
+                    </div>
+                    {% if entrega.archivo %}
+                    <a href="{{ entrega.archivo.url }}" target="_blank" class="btn-outline px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2">
+                        <i class="bi bi-download"></i>Descargar Archivo
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if entrega.comentario %}
+            <div>
+                <p class="text-sm font-medium mb-2" style="color: var(--color-text);">Comentario del estudiante:</p>
+                <div class="p-4 rounded-xl bg-gray-50 dark:bg-gray-800 text-sm" style="color: var(--color-text-secondary);">
+                    {{ entrega.comentario|linebreaks }}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="hybrid-card rounded-2xl p-8">
+            <h2 class="text-xl font-bold mb-4" style="color: var(--color-text);">
+                <i class="bi bi-pencil-square me-2" style="color: var(--color-primary);"></i>Calificación y Retroalimentación
+            </h2>
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="mb-6">
+                    <label class="block text-base font-medium mb-2" style="color: var(--color-text);">
+                        Puntaje Obtenido <span class="text-red-500">*</span>
+                        <span class="text-sm font-normal text-gray-500">(Máximo: {{ tarea.puntaje_maximo }})</span>
+                    </label>
+                    <div class="flex items-center gap-3">
+                        <input type="number" name="{{ form.puntaje_obtenido.name }}" id="{{ form.puntaje_obtenido.id_for_label }}"
+                               value="{{ form.puntaje_obtenido.value|default:'' }}"
+                               class="input-field w-32 px-4 py-3 rounded-xl"
+                               min="0" max="{{ tarea.puntaje_maximo }}"
+                               required>
+                        <span class="text-lg font-bold" style="color: var(--color-text-secondary);">/ {{ tarea.puntaje_maximo }} pts</span>
+                    </div>
+                    {% if form.puntaje_obtenido.errors %}
+                    <p class="mt-2 text-sm text-red-500">{{ form.puntaje_obtenido.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-8">
+                    <label class="block text-base font-medium mb-2" style="color: var(--color-text);">
+                        Retroalimentación (Opcional)
+                    </label>
+                    <textarea name="{{ form.retroalimentacion.name }}" id="{{ form.retroalimentacion.id_for_label }}"
+                              class="input-field w-full px-4 py-3 rounded-xl"
+                              rows="6"
+                              placeholder="Escribe comentarios o sugerencias para el estudiante...">{{ form.retroalimentacion.value|default:'' }}</textarea>
+                    {% if form.retroalimentacion.errors %}
+                    <p class="mt-2 text-sm text-red-500">{{ form.retroalimentacion.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="flex gap-4 border-t pt-6" style="border-color: var(--color-border);">
+                    <button type="submit" name="accion" value="calificar" class="btn-primary px-6 py-3 rounded-xl font-medium">
+                        <i class="bi bi-check-circle me-2"></i>Guardar Calificación
+                    </button>
+                    <button type="submit" name="accion" value="devolver" class="btn-outline px-6 py-3 rounded-xl font-medium text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20">
+                        <i class="bi bi-arrow-return-left me-2"></i>Devolver para Corrección
+                    </button>
+                    <a href="{% url 'tareas:tarea_list' tarea.curso.id %}" class="px-6 py-3 rounded-xl font-medium inline-block text-center" style="color: var(--color-text-secondary);">
+                        Cancelar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="space-y-6">
+        <div class="hybrid-card rounded-2xl p-8">
+            <h3 class="text-lg font-bold mb-4" style="color: var(--color-text);">
+                <i class="bi bi-info-circle me-2" style="color: var(--color-primary);"></i>Detalles de Tarea
+            </h3>
+            <p class="text-sm font-medium mb-1" style="color: var(--color-text);">{{ tarea.titulo }}</p>
+            <div class="text-sm space-y-2 mt-2" style="color: var(--color-text-secondary);">
+                <p>
+                    <i class="bi bi-star me-1"></i>Puntaje Máximo: {{ tarea.puntaje_maximo }} pts
+                </p>
+                {% if tarea.fecha_limite %}
+                <p>
+                    <i class="bi bi-calendar-event me-1"></i>Fecha Límite: {{ tarea.fecha_limite|date:"d M Y H:i" }}
+                </p>
+                {% endif %}
+            </div>
+            
+            <a href="{% url 'tareas:tarea_detail' tarea.id %}" class="btn-outline w-full px-4 py-2 rounded-xl text-sm font-medium mt-4 flex items-center justify-center gap-2">
+                <i class="bi bi-eye"></i>Ver Tarea Completa
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

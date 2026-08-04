@@ -1,0 +1,26 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block extrahead %}
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'admin/base.css' %}">
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+    <i class="bi bi-mortarboard-fill"></i> Kimün - Administración
+</h1>
+{% endblock %}
+
+{% block userlinks %}
+<div class="user-tools">
+    {% if user.has_usable_password %}
+    <a href="{% url 'admin:password_change' %}">
+        <i class="bi bi-key"></i> Cambiar contraseña
+    </a>
+    {% endif %}
+    <a href="{% url 'admin:logout' %}">
+        <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    </a>
+</div>
+{% endblock %}

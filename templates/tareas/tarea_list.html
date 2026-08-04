@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tareas de {{ curso.titulo }} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=curso.id %}">{{ curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Tareas</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-6">
+    <div class="flex flex-col md:flex-row justify-between items-start gap-4">
+        <div>
+            <a href="{% url 'cursos:curso_detail' pk=curso.id %}" class="text-sm mb-2 inline-block text-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Volver al curso
+            </a>
+            <h1 class="section-title mb-1">
+                <i class="bi bi-journal-text"></i> Tareas
+            </h1>
+            <p class="mt-1 text-secondary">
+                {{ curso.titulo }}
+            </p>
+        </div>
+        {% if user.rol == 'admin' or user.rol == 'docente' or puede_editar %}
+        <div class="flex gap-2">
+            <a href="{% url 'tareas:tarea_create' curso.id %}" class="btn-primary px-4 py-2 rounded-xl text-sm font-medium">
+                <i class="bi bi-plus-lg me-1"></i>Crear Tarea
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="mb-8">
+    {% if tareas %}
+        <div class="stack-md stagger-in">
+            {% for tarea in tareas %}
+            <div class="hybrid-card rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div class="flex-1">
+                    <a href="{% url 'tareas:tarea_detail' tarea.id %}" class="text-lg font-bold hover:underline text-primary">
+                        {{ tarea.titulo }}
+                    </a>
+                    <div class="flex flex-wrap gap-4 mt-2 text-sm text-secondary">
+                        {% if tarea.fecha_limite %}
+                            <span class="flex items-center gap-1" style="{% if tarea.fecha_limite < now %}color: var(--color-pink); font-weight: 700;{% endif %}">
+                                <i class="bi bi-calendar-event"></i>
+                                {% if tarea.fecha_limite < now %}
+                                    Vencido: {{ tarea.fecha_limite|date:"d M Y H:i" }}
+                                {% else %}
+                                    Límite: {{ tarea.fecha_limite|date:"d M Y H:i" }}
+                                {% endif %}
+                            </span>
+                        {% endif %}
+                        <span class="flex items-center gap-1">
+                            <i class="bi bi-star"></i> {{ tarea.puntaje_maximo }} pts
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col md:items-end gap-2 text-sm">
+                    {% if user.rol == 'colaborador' %}
+                        {% if tarea.user_entrega %}
+                            {% if tarea.user_entrega.estado == 'calificado' %}
+                                <span class="badge badge-success">
+                                    <i class="bi bi-check-circle"></i> Calificado ({{ tarea.user_entrega.puntaje_obtenido }}/{{ tarea.puntaje_maximo }})
+                                </span>
+                            {% elif tarea.user_entrega.estado == 'devuelto' %}
+                                <span class="badge badge-warning">
+                                    <i class="bi bi-arrow-return-left"></i> Devuelto
+                                </span>
+                            {% else %}
+                                <span class="badge badge-info">
+                                    <i class="bi bi-send"></i> Enviado
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-purple" style="background: var(--color-border); color: var(--color-text-secondary);">
+                                <i class="bi bi-dash-circle"></i> Pendiente
+                            </span>
+                        {% endif %}
+                    {% endif %}
+                    <a href="{% url 'tareas:tarea_detail' tarea.id %}" class="btn-subtle px-4 py-2 rounded-xl text-sm">
+                        Ver Detalles
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        {% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-tasks.svg' title='No hay tareas asignadas' description='Aún no se han creado tareas para este curso.' %}
+    {% endif %}
+</div>
+{% endblock %}

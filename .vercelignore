@@ -1,0 +1,31 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database
+db.sqlite3
+db.sqlite3-journal
+
+# Environment
+.env
+.env.vercel.local
+
+# Development tools
+tools/
+.sisyphus/
+.planning/
+
+# Media uploads (stored on Supabase)
+media/
+
+# Git
+.git/
+.gitignore
+
+# OS
+.DS_Store
+Thumbs.db

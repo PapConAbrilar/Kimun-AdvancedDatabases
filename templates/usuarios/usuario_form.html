@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}{% if accion == 'crear' %}Nuevo{% else %}Editar{% endif %} Usuario - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'usuarios:usuario_list' %}">Usuarios</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if accion == 'crear' %}Nuevo{% else %}Editar{% endif %}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in max-w-2xl mx-auto">
+    <div class="mb-6">
+        <a href="{% url 'usuarios:usuario_list' %}" class="text-sm hover:underline" style="color: var(--color-text-secondary);">
+            <i class="bi bi-arrow-left"></i> Volver a Usuarios
+        </a>
+        <h1 class="text-3xl font-bold mt-2">
+            {% if accion == 'crear' %}Nuevo{% else %}Editar{% endif %} Usuario
+        </h1>
+    </div>
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="hybrid-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold mb-4">Información de Cuenta</h2>
+            <div class="grid gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Nombre de usuario *</label>
+                    <input type="text" name="username" required 
+                           value="{{ form.username.value|default:'' }}"
+                           class="w-full px-4 py-3 rounded-lg input-field">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">
+                        {% if accion == 'crear' %}Contraseña *{% else %}Nueva Contraseña (opcional){% endif %}
+                    </label>
+                    <input type="password" name="password" 
+                           class="w-full px-4 py-3 rounded-lg input-field"
+                           {% if accion == 'crear' %}required{% endif %}>
+                </div>
+            </div>
+        </div>
+
+        <div class="hybrid-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold mb-4">Información Personal</h2>
+            <div class="grid gap-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Nombre</label>
+                        <input type="text" name="first_name" 
+                               value="{{ form.first_name.value|default:'' }}"
+                               class="w-full px-4 py-3 rounded-lg input-field">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Apellido</label>
+                        <input type="text" name="last_name" 
+                               value="{{ form.last_name.value|default:'' }}"
+                               class="w-full px-4 py-3 rounded-lg input-field">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Email</label>
+                    <input type="email" name="email" 
+                           value="{{ form.email.value|default:'' }}"
+                           class="w-full px-4 py-3 rounded-lg input-field">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">RUT *</label>
+                    <input type="text" name="rut" required 
+                           value="{{ form.rut.value|default:'' }}"
+                           class="w-full px-4 py-3 rounded-lg input-field"
+                           placeholder="Ej: 12345678-9">
+                </div>
+            </div>
+        </div>
+
+        <div class="hybrid-card rounded-xl p-6">
+            <h2 class="text-lg font-semibold mb-4">Rol y Cargo</h2>
+            <div class="grid gap-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Rol *</label>
+                    <select name="rol" required class="w-full px-4 py-3 rounded-lg input-field">
+                        <option value="">Seleccionar rol</option>
+                        <option value="admin" {% if form.rol.value == 'admin' %}selected{% endif %}>Administrador</option>
+                        <option value="docente" {% if form.rol.value == 'docente' %}selected{% endif %}>Docente</option>
+                        <option value="colaborador" {% if form.rol.value == 'colaborador' %}selected{% endif %}>Colaborador</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Cargo</label>
+                    <select name="cargo" id="cargo-select" class="w-full px-4 py-3 rounded-lg input-field">
+                        <option value="">Sin cargo asignado</option>
+                        <optgroup label="Colaborador" id="cargos-colaborador" style="display: none;">
+                            {% for area in areas_colaborador %}
+                            <option value="{{ area.pk }}" {% if form.cargo.value == area.pk|stringformat:'s' %}selected{% endif %}>
+                                {{ area.nombre }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Administrador" id="cargos-admin" style="display: none;">
+                            {% for area in areas_admin %}
+                            <option value="{{ area.pk }}" {% if form.cargo.value == area.pk|stringformat:'s' %}selected{% endif %}>
+                                {{ area.nombre }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="Docente" id="cargos-docente" style="display: none;">
+                            {% for area in areas_docente %}
+                            <option value="{{ area.pk }}" {% if form.cargo.value == area.pk|stringformat:'s' %}selected{% endif %}>
+                                {{ area.nombre }}
+                            </option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-4">
+            <a href="{% url 'usuarios:usuario_list' %}" 
+               class="px-6 py-2.5 rounded-lg font-medium" style="color: var(--color-text-secondary);">
+                Cancelar
+            </a>
+            <button type="submit" class="btn-primary px-6 py-2.5 rounded-lg font-medium">
+                <i class="bi bi-check-lg"></i> 
+                {% if accion == 'crear' %}Crear Usuario{% else %}Guardar Cambios{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function() {
+    const rolSelect = document.querySelector('select[name="rol"]');
+    const cargoSelect = document.getElementById('cargo-select');
+    const colaboradorGroup = document.getElementById('cargos-colaborador');
+    const adminGroup = document.getElementById('cargos-admin');
+    const docenteGroup = document.getElementById('cargos-docente');
+    
+    function updateCargoOptions() {
+        const selectedRol = rolSelect.value;
+        
+        colaboradorGroup.style.display = 'none';
+        adminGroup.style.display = 'none';
+        docenteGroup.style.display = 'none';
+        
+        if (selectedRol === 'colaborador') {
+            colaboradorGroup.style.display = 'block';
+        } else if (selectedRol === 'admin') {
+            adminGroup.style.display = 'block';
+        } else if (selectedRol === 'docente') {
+            docenteGroup.style.display = 'block';
+        }
+        
+        cargoSelect.value = '';
+    }
+    
+    rolSelect.addEventListener('change', updateCargoOptions);
+    updateCargoOptions();
+})();
+</script>
+{% endblock %}

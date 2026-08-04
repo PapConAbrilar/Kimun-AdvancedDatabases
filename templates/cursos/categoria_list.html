@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+
+{% block title %}Categorías - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Categorías</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold">Categorías</h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">
+                Organizar cursos por categorías
+            </p>
+        </div>
+        <a href="{% url 'cursos:categoria_create' %}" class="btn-primary px-5 py-2.5 rounded-lg font-medium flex items-center gap-2">
+            <i class="bi bi-plus-lg"></i> Nueva Categoría
+        </a>
+    </div>
+
+    {% if categorias %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for categoria in categorias %}
+        <div class="hybrid-card rounded-xl p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl"
+                     style="background-color: {{ categoria.color }}20; color: {{ categoria.color }};">
+                    <i class="bi bi-tag"></i>
+                </div>
+                <span class="px-2 py-1 rounded text-xs font-medium" 
+                      style="background-color: {{ categoria.color }}20; color: {{ categoria.color }};">
+                    {{ categoria.cursos.count }} curso{{ categoria.cursos.count|pluralize }}
+                </span>
+            </div>
+            
+            <h3 class="text-lg font-bold mb-2" style="color: var(--color-text);">
+                {{ categoria.nombre }}
+            </h3>
+            {% if categoria.descripcion %}
+            <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+                {{ categoria.descripcion }}
+            </p>
+            {% endif %}
+            
+            <div class="pt-4 border-t flex items-center justify-between" style="border-color: var(--color-border);">
+                <a href="{% url 'cursos:categoria_edit' pk=categoria.pk %}" 
+                   class="text-sm font-medium" style="color: var(--color-primary);">
+                    <i class="bi bi-pencil me-1"></i>Editar
+                </a>
+                <form method="post" action="{% url 'cursos:categoria_delete' pk=categoria.pk %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-sm font-medium" 
+                            onclick="return confirm('¿Eliminar esta categoría? Los cursos quedarán sin categoría.')" 
+                            style="color: #dc2626;">
+                        <i class="bi bi-trash me-1"></i>Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background-color: var(--color-info-bg);">
+            <i class="bi bi-tag text-2xl" style="color: var(--color-info);"></i>
+        </div>
+        <h3 class="text-xl font-medium">No hay categorías</h3>
+        <p class="mt-2" style="color: var(--color-text-secondary);">
+            Crea categorías para organizar tus cursos.
+        </p>
+        <a href="{% url 'cursos:categoria_create' %}" class="btn-primary px-5 py-2.5 rounded-lg font-medium inline-block mt-4">
+            <i class="bi bi-plus-lg me-1"></i> Crear Categoría
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,6 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M40 140h30v20m-30-20v-40h30v40m-30-40v-20c0-5 5-10 15-10s15 5 15 10v20" />
+  <path d="M85 140h30v20m-30-20v-40h30v40m-30-40v-20c0-5 5-10 15-10s15 5 15 10v20" />
+  <path d="M130 140h30v20m-30-20v-40h30v40m-30-40v-20c0-5 5-10 15-10s15 5 15 10v20" />
+  <path d="M30 140h140" />
+</svg>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+{% extends 'base.html' %}
+
+{% block title %}Certificados - Kimün{% endblock %}
+
+{% block content %}
+<div class="fade-in">
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold">Certificados</h1>
+            <p class="mt-1" style="color: var(--color-text-secondary);">
+                {% if user.rol == 'admin' %}Gestiona los certificados emitidos{% else %}Verifica tu progreso y descarga certificados{% endif %}
+            </p>
+        </div>
+    </div>
+
+    {% if certificados %}
+    <div class="grid gap-4">
+        {% for cert in certificados %}
+        <div class="hybrid-card rounded-xl p-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-xl flex items-center justify-center text-2xl" 
+                         style="background-color: var(--color-purple-bg); color: var(--color-purple);">
+                        <i class="bi bi-award-fill"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-semibold">{{ cert.curso.titulo }}</h3>
+                        <p class="text-sm" style="color: var(--color-text-secondary);">
+                            <i class="bi bi-calendar me-1"></i>{{ cert.fecha_emision|date:"d M Y" }}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <a href="{% url 'certificados:descargar_certificado' pk=cert.pk %}" 
+                       class="btn-primary px-4 py-2 rounded-lg font-medium">
+                        <i class="bi bi-download me-1"></i>Descargar
+                    </a>
+                    <span class="text-xs px-2 py-1 rounded" style="background-color: var(--color-success-bg); color: var(--color-success);">
+                        {{ cert.codigo_verificacion|stringformat:"s"|slice:":8" }}
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center" style="background-color: var(--color-purple-bg);">
+            <i class="bi bi-award text-2xl" style="color: var(--color-purple);"></i>
+        </div>
+        <h3 class="text-xl font-medium">No hay certificados</h3>
+        <p class="mt-2" style="color: var(--color-text-secondary);">
+            Completa las evaluaciones de tus cursos para obtener certificados.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

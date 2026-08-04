@@ -1,0 +1,142 @@
+@startuml
+left to right direction
+skinparam backgroundColor #FEFECE
+skinparam usecaseBackgroundColor #FEFECE
+
+actor "Administrador" as Admin
+actor "Docente" as Docente
+actor "Colaborador" as Colab
+actor "Sistema" as Sistema
+
+rectangle "Kimün LMS" {
+    ' Casos de uso del Administrador
+    package "Gestión de Usuarios" {
+        usecase "Crear Usuario" as UC_CrearUser
+        usecase "Editar Usuario" as UC_EditUser
+        usecase "Eliminar Usuario" as UC_DeleteUser
+        usecase "Asignar Cargo" as UC_AsignCargo
+        usecase "Importar CSV" as UC_ImportCSV
+    }
+    
+    package "Gestión de Cursos" {
+        usecase "Crear Curso" as UC_CrearCurso
+        usecase "Editar Curso" as UC_EditCurso
+        usecase "Eliminar Curso" as UC_DeleteCurso
+        usecase "Publicar Curso" as UC_Publicar
+        usecase "Gestionar Categorías" as UC_Categorias
+    }
+    
+    package "Inscripciones" {
+        usecase "Inscribir Usuario" as UC_Inscribir
+        usecase "Ver Inscripciones" as UC_VerInscrip
+        usecase "Cancelar Inscripción" as UC_CancelInscrip
+    }
+    
+    package "Contenido" {
+        usecase "Crear Clase" as UC_CrearClase
+        usecase "Editar Clase" as UC_EditClase
+        usecase "Subir Material" as UC_SubirMat
+        usecase "Ordenar Clases" as UC_OrdenarClase
+    }
+    
+    package "Evaluaciones" {
+        usecase "Crear Evaluación" as UC_CrearEval
+        usecase "Editar Evaluación" as UC_EditEval
+        usecase "Ver Resultados" as UC_VerResult
+        usecase "Tomar Evaluación" as UC_TomarEval
+        usecase "Ver Resultado Propio" as UC_VerMiResult
+    }
+    
+    package "Certificados" {
+        usecase "Generar Certificado" as UC_GenCert
+        usecase "Descargar Certificado" as UC_DownCert
+        usecase "Verificar Certificado" as UC_VerifCert
+    }
+    
+    package "Calendario" {
+        usecase "Crear Evento" as UC_CrearEvento
+        usecase "Ver Calendario" as UC_VerCal
+        usecase "Editar Evento" as UC_EditEvento
+    }
+    
+    package "Reportes" {
+        usecase "Ver Dashboard" as UC_Dashboard
+        usecase "Generar Reporte" as UC_GenReport
+    }
+    
+    package "Anuncios" {
+        usecase "Crear Anuncio" as UC_CrearAnuncio
+        usecase "Enviar Notificación" as UC_EnviarNotif
+    }
+    
+    package "Progreso" {
+        usecase "Completar Clase" as UC_CompClase
+        usecase "Ver Progreso" as UC_VerProgreso
+        usecase "Calcular Estadísticas" as UC_CalcStats
+    }
+}
+
+' Relaciones Administrador
+Admin --> UC_CrearUser
+Admin --> UC_EditUser
+Admin --> UC_DeleteUser
+Admin --> UC_AsignCargo
+Admin --> UC_ImportCSV
+Admin --> UC_CrearCurso
+Admin --> UC_EditCurso
+Admin --> UC_DeleteCurso
+Admin --> UC_Publicar
+Admin --> UC_Categorias
+Admin --> UC_Inscribir
+Admin --> UC_VerInscrip
+Admin --> UC_CancelInscrip
+Admin --> UC_CrearEval
+Admin --> UC_EditEval
+Admin --> UC_VerResult
+Admin --> UC_GenCert
+Admin --> UC_VerifCert
+Admin --> UC_CrearEvento
+Admin --> UC_EditEvento
+Admin --> UC_Dashboard
+Admin --> UC_GenReport
+Admin --> UC_CrearAnuncio
+
+' Relaciones Docente
+Docente --> UC_CrearCurso
+Docente --> UC_EditCurso
+Docente --> UC_Publicar
+Docente --> UC_CrearClase
+Docente --> UC_EditClase
+Docente --> UC_SubirMat
+Docente --> UC_OrdenarClase
+Docente --> UC_Inscribir
+Docente --> UC_VerInscrip
+Docente --> UC_CrearEval
+Docente --> UC_EditEval
+Docente --> UC_VerResult
+Docente --> UC_VerCal
+Docente --> UC_GenReport
+
+' Relaciones Colaborador
+Colab --> UC_VerCal
+Colab --> UC_TomarEval
+Colab --> UC_VerMiResult
+Colab --> UC_DownCert
+Colab --> UC_CompClase
+Colab --> UC_VerProgreso
+
+' Relaciones Sistema (automáticas)
+Sistema --> UC_CalcStats
+Sistema --> UC_EnviarNotif
+Sistema --> UC_GenCert
+
+' Relaciones <<include>>
+UC_TomarEval ..> UC_VerProgreso : <<include>>
+UC_CompClase ..> UC_VerProgreso : <<include>>
+
+' Relaciones <<extend>>
+UC_CrearCurso ..> UC_CrearEvento : <<extend>>
+UC_CalcStats ..> UC_GenReport : <<extend>>
+UC_TomarEval ..> UC_GenCert : <<extend>> (si aprueba)
+
+@enduml

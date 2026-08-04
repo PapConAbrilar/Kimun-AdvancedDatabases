@@ -1,0 +1,91 @@
+# =============================================================================
+# Kimün - Dependencies (Python 3.12+)
+# Generated from project venv. See .sisyphus/plans/vercel-deployment.md
+# =============================================================================
+
+# --- Core Django ---
+Django>=6.0,<6.1
+asgiref==3.11.1
+sqlparse==0.5.5
+
+# --- Database ---
+psycopg2-binary==2.9.11
+
+# --- Environment & Config ---
+python-dotenv==1.2.2
+PyJWT==2.12.1
+cryptography==47.0.0
+cffi==2.0.0
+pycparser==3.0
+
+# --- Django Apps ---
+django-ckeditor-5==0.2.20
+django-ckeditor==6.7.3
+django-js-asset==3.1.2
+django-supabase-storage==1.0.1
+
+# --- Supabase Client Stack ---
+supabase==2.28.3
+supabase-auth==2.28.3
+supabase-functions==2.28.3
+storage3==2.28.3
+postgrest==2.28.3
+realtime==2.28.3
+httpx==0.28.1
+httpcore==1.0.9
+h11==0.16.0
+h2==4.3.0
+hpack==4.1.0
+hyperframe==6.1.0
+anyio==4.13.0
+idna==3.11
+certifi==2026.2.25
+brotli==1.2.0
+yarl==1.23.0
+multidict==6.7.1
+propcache==0.4.1
+websockets==15.0.1
+deprecation==2.1.0
+StrEnum==0.4.15
+strictyaml==1.7.3
+pydantic==2.13.2
+pydantic-core==2.46.2
+annotated-types==0.7.0
+typing_extensions==4.15.0
+typing-inspection==0.4.2
+tenacity==9.1.4
+mmh3==5.2.1
+cachetools==6.2.6
+pyiceberg==0.11.1
+pyroaring==1.0.4
+fsspec==2026.3.0
+greenlet==3.4.0
+packaging==26.1
+zstandard==0.25.0
+click==8.3.2
+
+# --- PDF Generation (reportlab only - pure Python, no Cairo) ---
+reportlab>=4.0
+pypdf==6.10.2
+html5lib==1.1
+PyYAML==6.0.3
+
+# --- Image Processing ---
+Pillow==12.1.1
+lxml==6.0.4
+
+# --- Document Processing ---
+python-docx==1.2.0
+python-dateutil==2.9.0.post0
+six==1.17.0
+
+# --- HTTP Client ---
+requests==2.33.1
+urllib3==2.6.3
+charset-normalizer==3.4.7
+
+# --- Static File Serving ---
+whitenoise>=6.0
+
+# --- WSGI Server ---
+gunicorn>=22.0

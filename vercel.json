@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.py"
+    }
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "memory": 2048,
+      "includeFiles": "../**"
+    }
+  },
+  "buildCommand": "cd api && bash build.sh",
+  "env": {
+    "PYTHON_VERSION": "3.12",
+    "PIP_BREAK_SYSTEM_PACKAGES": "1"
+  }
+}

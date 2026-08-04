@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% load evaluaciones_filters %}
+
+{% block title %}Resultado - {{ evaluacion.titulo }}{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_list' %}">Cursos</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'cursos:curso_detail' pk=evaluacion.curso.pk %}">{{ evaluacion.curso.titulo }}</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'evaluaciones:evaluacion_list' curso_pk=evaluacion.curso.pk %}">Evaluaciones</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>Resultado</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="fade-in max-w-3xl mx-auto">
+    <div class="text-center mb-8">
+        <div class="w-20 h-20 rounded-full mx-auto mb-4 flex items-center justify-center 
+            {% if intento.aprobado %}bg-green-100 dark:bg-green-900{% else %}bg-red-100 dark:bg-red-900{% endif %}">
+            {% if intento.aprobado %}
+            <i class="bi bi-check-lg text-4xl text-green-600"></i>
+            {% else %}
+            <i class="bi bi-x-lg text-4xl text-red-600"></i>
+            {% endif %}
+        </div>
+        
+        <h1 class="text-3xl font-bold">
+            {% if intento.aprobado %}¡Felicitaciones!{% else %}No aprobaste{% endif %}
+        </h1>
+        <p class="mt-2 text-lg" style="color: var(--color-text-secondary);">
+            {{ evaluacion.titulo }}
+        </p>
+    </div>
+
+    <div class="hybrid-card rounded-xl p-6 mb-6">
+        <div class="text-center">
+            <div class="text-5xl font-bold mb-2 
+                {% if intento.aprobado %}text-green-600{% else %}text-red-600{% endif %}">
+                {{ intento.puntaje_obtenido }}%
+            </div>
+            <p style="color: var(--color-text-secondary);">
+                Tu puntaje · Necesitas {{ evaluacion.porcentaje_aprobacion }}% para aprobar
+            </p>
+        </div>
+        
+        <div class="mt-6 grid grid-cols-2 gap-4 text-center">
+            <div class="p-4 rounded-lg" style="background-color: var(--color-bg);">
+                <div class="text-2xl font-bold">
+                    {{ evaluacion.preguntas.count }}
+                </div>
+                <div class="text-sm" style="color: var(--color-text-secondary);">Total preguntas</div>
+            </div>
+            <div class="p-4 rounded-lg" style="background-color: var(--color-bg);">
+                <div class="text-2xl font-bold">
+                    {% with total=evaluacion.preguntas.count %}
+                    {% widthratio intento.puntaje_obtenido 100 total as correctas %}
+                    {{ correctas }}
+                    {% endwith %}
+                </div>
+                <div class="text-sm" style="color: var(--color-text-secondary);">Respuestas correctas</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hybrid-card rounded-xl p-6 mb-6">
+        <h2 class="text-lg font-semibold mb-4">Resumen de Preguntas</h2>
+        
+        {% for pregunta in preguntas %}
+        {% with user_answer=intento.respuestas|get_item:pregunta.pk %}
+        {% with correct_alt=pregunta.alternativas.all|get_correct_alt %}
+        <div class="mb-4 p-4 rounded-lg" style="background-color: var(--color-bg);">
+            <div class="flex items-start gap-3">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-sm
+                    {% if user_answer == correct_alt.pk|stringformat:"s" %}bg-green-100 text-green-600{% else %}bg-red-100 text-red-600{% endif %}">
+                    {% if user_answer == correct_alt.pk|stringformat:"s" %}
+                    <i class="bi bi-check"></i>
+                    {% else %}
+                    <i class="bi bi-x"></i>
+                    {% endif %}
+                </div>
+                <div class="flex-1">
+                    <p class="font-medium">{{ pregunta.texto }}</p>
+                    <div class="mt-2 text-sm" style="color: var(--color-text-secondary);">
+                        {% for alt in pregunta.alternativas.all %}
+                        <div class="flex items-center gap-2">
+                            {% if alt.pk|stringformat:"s" == user_answer %}
+                                {% if alt.es_correcta %}
+                                <i class="bi bi-check-circle text-green-600"></i>
+                                {% else %}
+                                <i class="bi bi-x-circle text-red-600"></i>
+                                {% endif %}
+                            {% else %}
+                                {% if alt.es_correcta %}
+                                <i class="bi bi-check-circle text-green-600"></i>
+                                {% else %}
+                                <i class="bi bi-circle"></i>
+                                {% endif %}
+                            {% endif %}
+                            <span {% if alt.es_correcta %}class="text-green-600 font-medium"{% endif %}
+                                  {% if alt.pk|stringformat:"s" == user_answer and not alt.es_correcta %}class="text-red-600"{% endif %}>
+                                {{ alt.texto }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+        {% endwith %}
+        {% endfor %}
+    </div>
+
+    <div class="flex justify-center gap-4">
+        <a href="{% url 'evaluaciones:tomar_evaluacion' pk=evaluacion.pk %}" 
+           class="btn-outline px-6 py-2.5 rounded-lg font-medium">
+            <i class="bi bi-arrow-repeat"></i> Repetir Evaluación
+        </a>
+        <a href="{% url 'cursos:curso_detail' pk=evaluacion.curso.pk %}" 
+           class="btn-primary px-6 py-2.5 rounded-lg font-medium">
+            <i class="bi bi-house"></i> Volver al Curso
+        </a>
+    </div>
+</div>
+{% endblock %}

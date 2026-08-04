@@ -1,0 +1,7 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <g transform="rotate(-5 100 100)">
+    <rect x="50" y="60" width="100" height="90" rx="5" />
+    <path d="M50 90h100M70 50v20m60-20v20" />
+    <path d="M70 110h10M95 110h10M120 110h10M70 130h10M95 130h10" />
+  </g>
+</svg>

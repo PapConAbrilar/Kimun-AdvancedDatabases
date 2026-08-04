@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Mis Cursos - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if es_docente %}Mis Cursos Creados{% else %}Mis Cursos{% endif %}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="mb-6">
+    <h1 class="text-2xl font-bold" style="color: var(--color-text);">
+        {% if es_docente %}
+        <i class="bi bi-book me-2" style="color: var(--color-primary);"></i>
+        Mis Cursos Creados
+        {% else %}
+        <i class="bi bi-book me-2" style="color: var(--color-primary);"></i>
+        Mis Cursos
+        {% endif %}
+    </h1>
+    <p class="mt-1" style="color: var(--color-text-secondary);">
+        {% if es_docente %}Cursos que has creado{% else %}Cursos que tienes asignados{% endif %}
+    </p>
+</div>
+
+<!-- Mensajes -->
+{% if messages %}
+    {% for message in messages %}
+    <div class="mb-6 p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200{% else %}bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+{% endif %}
+
+<!-- docente: cursos creados -->
+{% if es_docente and cursos %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for curso in cursos %}
+    <div class="hybrid-card rounded-2xl p-6 group">
+        <div class="flex items-start justify-between mb-4">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl" 
+                 style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                <i class="bi bi-book-fill"></i>
+            </div>
+            {% if curso.estado == 'borrador' %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  style="background-color: #fef3c7; color: #d97706;">
+                Borrador
+            </span>
+            {% else %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  style="background-color: var(--color-success-bg); color: var(--color-success);">
+                Público
+            </span>
+            {% endif %}
+        </div>
+        
+        <h3 class="text-xl font-bold mb-2" style="color: var(--color-text);">
+            {{ curso.titulo }}
+        </h3>
+        <p class="mb-4 line-clamp-2" style="color: var(--color-text-secondary);">
+            {{ curso.descripcion }}
+        </p>
+        
+        {% if curso.fecha_limite %}
+        <div class="mb-4">
+            {% if curso.fecha_limite < now %}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" style="background-color: #fee2e2; color: #dc2626;">
+                <i class="bi bi-exclamation-triangle me-1"></i>Vencido
+            </span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                <i class="bi bi-clock me-1"></i>{{ curso.fecha_limite|date:"d M" }}
+            </span>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="pt-4 border-t flex items-center justify-between" style="border-color: var(--color-border);">
+            <span class="text-sm" style="color: var(--color-text-secondary);">
+                <i class="bi bi-calendar me-1"></i>
+                {{ curso.fecha_creacion|date:"d M Y" }}
+            </span>
+            <a href="{% url 'cursos:curso_detail' pk=curso.id %}" 
+               class="text-sm font-medium transition-colors"
+               style="color: var(--color-primary);">
+                Ver <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif es_docente %}
+<!-- Estado vacío para docente -->
+{% url 'cursos:curso_create' as create_url %}
+{% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-courses.svg' title='No has creado ningún curso' description='Crea tu primer curso de capacitación.' action_url=create_url action_text='Crear Curso' %}
+
+<!-- colaborador: cursos inscritos -->
+{% elif inscripciones %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for inscripcion in inscripciones %}
+    <div class="hybrid-card rounded-2xl p-6 group">
+        <div class="flex items-start justify-between mb-4">
+            <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl" 
+                 style="background-color: var(--color-primary); color: white;">
+                <i class="bi bi-book-fill"></i>
+            </div>
+            {% if inscripcion.estado == 'completado' %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  style="background-color: var(--color-success-bg); color: var(--color-success);">
+                <i class="bi bi-check-circle me-1"></i>Completado
+            </span>
+            {% elif inscripcion.estado == 'en_progreso' %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                <i class="bi bi-play-circle me-1"></i>En Progreso
+            </span>
+            {% else %}
+            <span class="px-3 py-1 rounded-full text-xs font-semibold" 
+                  style="background-color: var(--color-bg); color: var(--color-text-secondary);">
+                <i class="bi bi-clock me-1"></i>Asignado
+            </span>
+            {% endif %}
+        </div>
+        
+        <h3 class="text-xl font-bold mb-2" style="color: var(--color-text);">
+            {{ inscripcion.curso.titulo }}
+        </h3>
+        <p class="mb-4 line-clamp-2" style="color: var(--color-text-secondary);">
+            {{ inscripcion.curso.descripcion }}
+        </p>
+        
+        {% if inscripcion.curso.fecha_limite %}
+        <div class="mb-3">
+            {% if inscripcion.curso.fecha_limite < now %}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" style="background-color: #fee2e2; color: #dc2626;">
+                <i class="bi bi-exclamation-triangle me-1"></i>Vencido
+            </span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium" style="background-color: var(--color-warning-bg); color: var(--color-warning);">
+                <i class="bi bi-clock me-1"></i>{{ inscripcion.curso.fecha_limite|date:"d M" }}
+            </span>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="pt-4 border-t flex items-center justify-between" style="border-color: var(--color-border);">
+            <span class="text-sm" style="color: var(--color-text-secondary);">
+                <i class="bi bi-calendar me-1"></i>
+                {{ inscripcion.fecha_asignacion|date:"d M Y" }}
+            </span>
+            <a href="{% url 'cursos:curso_detail' pk=inscripcion.curso.id %}" 
+               class="text-sm font-medium transition-colors"
+               style="color: var(--color-primary);">
+                Ver curso <i class="bi bi-arrow-right ms-1"></i>
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<!-- Estado vacío para colaborador -->
+{% url 'usuarios:mis_cursos' as mis_cursos_url %}
+{% include 'partials/empty_state.html' with illustration_path='img/illustrations/empty-courses.svg' title='No tienes cursos asignados' description='Contacta a tu administrador para que te asigne cursos de capacitación.' action_url=mis_cursos_url action_text='Actualizar' %}
+{% endif %}
+
+<style>
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+</style>
+{% endblock %}

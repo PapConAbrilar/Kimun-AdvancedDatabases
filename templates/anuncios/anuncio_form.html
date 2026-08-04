@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {% if anuncio %}Editar Anuncio{% else %}Crear Anuncio{% endif %} - Kimün
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4 text-secondary">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'anuncios:anuncio_list' %}">Anuncios</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{% if anuncio %}Editar{% else %}Crear{% endif %} Anuncio</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <a href="{% if anuncio %}{% url 'anuncios:anuncio_detail' anuncio.id %}{% else %}{% url 'anuncios:anuncio_list' %}{% endif %}" class="text-sm mb-2 inline-block text-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Volver
+            </a>
+            <h1 class="section-title">
+                {% if anuncio %}
+                    <i class="bi bi-pencil-square me-2 text-primary"></i>Editar Anuncio
+                {% else %}
+                    <i class="bi bi-megaphone me-2 text-primary"></i>Crear Nuevo Anuncio
+                {% endif %}
+            </h1>
+        </div>
+    </div>
+
+    <div class="hybrid-card rounded-2xl p-8">
+        <form method="post" novalidate>
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+            <div class="mb-6 p-4 rounded-xl bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800/50">
+                <div class="flex items-center gap-2 mb-2 font-bold">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <span>Por favor corrige los siguientes errores:</span>
+                </div>
+                <ul class="list-disc list-inside ms-4 text-sm">
+                    {% for error in form.non_field_errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <div class="space-y-6">
+                <div>
+                    <label for="{{ form.titulo.id_for_label }}" class="block text-sm font-medium mb-2">
+                        Título <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.titulo }}
+                    {% if form.titulo.errors %}
+                        <div class="text-red-500 text-sm mt-1">{{ form.titulo.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <label for="{{ form.contenido.id_for_label }}" class="block text-sm font-medium mb-2">
+                        Contenido <span class="text-red-500">*</span>
+                    </label>
+                    {{ form.contenido }}
+                    {% if form.contenido.errors %}
+                        <div class="text-red-500 text-sm mt-1">{{ form.contenido.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="{{ form.prioridad.id_for_label }}" class="block text-sm font-medium mb-2">
+                            Prioridad
+                        </label>
+                        {{ form.prioridad }}
+                        {% if form.prioridad.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.prioridad.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.curso.id_for_label }}" class="block text-sm font-medium mb-2">
+                            Curso (Opcional)
+                        </label>
+                        {{ form.curso }}
+                        <div class="text-xs mt-1 text-secondary">
+                            Si lo dejas en blanco, el anuncio será general para todos.
+                        </div>
+                        {% if form.curso.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.curso.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="{{ form.fecha_publicacion.id_for_label }}" class="block text-sm font-medium mb-2">
+                            Fecha de Publicación (Opcional)
+                        </label>
+                        {{ form.fecha_publicacion }}
+                        {% if form.fecha_publicacion.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.fecha_publicacion.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.fecha_expiracion.id_for_label }}" class="block text-sm font-medium mb-2">
+                            Fecha de Expiración (Opcional)
+                        </label>
+                        {{ form.fecha_expiracion }}
+                        {% if form.fecha_expiracion.errors %}
+                            <div class="text-red-500 text-sm mt-1">{{ form.fecha_expiracion.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 p-4 rounded-xl border bg-gray-50 dark:bg-slate-800" style="border-color: var(--color-border);">
+                    {{ form.publicado }}
+                    <div class="flex flex-col">
+                        <label for="{{ form.publicado.id_for_label }}" class="text-sm font-bold cursor-pointer">
+                            Publicar Inmediatamente
+                        </label>
+                        <span class="text-xs text-secondary">
+                            Si marcas esta opción, el anuncio será visible de inmediato (o en la fecha programada).
+                        </span>
+                    </div>
+                    {% if form.publicado.errors %}
+                        <div class="text-red-500 text-sm mt-1">{{ form.publicado.errors|join:", " }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end gap-3 pt-6 border-t" style="border-color: var(--color-border);">
+                <a href="{% if anuncio %}{% url 'anuncios:anuncio_detail' anuncio.id %}{% else %}{% url 'anuncios:anuncio_list' %}{% endif %}" class="btn-outline px-6 py-2.5 rounded-xl font-medium">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn-primary px-6 py-2.5 rounded-xl font-medium flex items-center gap-2">
+                    <i class="bi bi-save"></i>
+                    {% if anuncio %}Guardar Cambios{% else %}Crear Anuncio{% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,116 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ banco.nombre }} - Kimün{% endblock %}
+
+{% block breadcrumbs %}
+<nav class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    <a href="{% url 'inicio' %}">Inicio</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <a href="{% url 'evaluaciones:banco_list' %}">Bancos de Preguntas</a>
+    <i class="bi bi-chevron-right text-xs mx-1"></i>
+    <span>{{ banco.nombre }}</span>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <a href="{% url 'evaluaciones:banco_list' %}" class="text-sm mb-2 inline-block" style="color: var(--color-text-secondary);">
+                <i class="bi bi-arrow-left me-1"></i> Volver a bancos
+            </a>
+            <h1 class="text-2xl font-bold" style="color: var(--color-text);">
+                <i class="bi bi-collection me-2" style="color: var(--color-primary);"></i>{{ banco.nombre }}
+            </h1>
+            <p class="mt-1 flex items-center gap-3" style="color: var(--color-text-secondary);">
+                <span><i class="bi bi-book me-1"></i>{{ banco.curso.titulo|default:"General" }}</span>
+                <span><i class="bi bi-person me-1"></i>{{ banco.creado_por.get_full_name|default:banco.creado_por.username }}</span>
+                {% if banco.es_publico %}
+                    <span class="text-green-600 dark:text-green-400 font-medium"><i class="bi bi-globe me-1"></i>Público</span>
+                {% else %}
+                    <span class="text-gray-500"><i class="bi bi-lock me-1"></i>Privado</span>
+                {% endif %}
+            </p>
+            {% if banco.descripcion %}
+            <p class="mt-4" style="color: var(--color-text);">
+                {{ banco.descripcion }}
+            </p>
+            {% endif %}
+        </div>
+        
+        {% if user.rol == 'admin' or user == banco.creado_por %}
+        <div class="flex gap-2 flex-col sm:flex-row">
+            <a href="{% url 'evaluaciones:banco_agregar_pregunta' banco.id %}" class="btn-primary px-4 py-2 rounded-xl text-sm font-medium">
+                <i class="bi bi-plus-lg me-1"></i>Agregar Pregunta
+            </a>
+            <a href="{% url 'evaluaciones:banco_edit' banco.id %}" class="btn-outline px-4 py-2 rounded-xl text-sm font-medium">
+                <i class="bi bi-pencil me-1"></i>Editar Banco
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="hybrid-card rounded-2xl p-8 mb-8">
+    <h2 class="text-xl font-semibold mb-6 flex items-center justify-between" style="color: var(--color-text);">
+        <span><i class="bi bi-question-circle me-2"></i>Preguntas en el banco</span>
+        <span class="text-sm font-normal px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">{{ preguntas.count|default:"0" }} en total</span>
+    </h2>
+
+    {% if preguntas %}
+        <div class="space-y-6">
+            {% for pregunta in preguntas %}
+            <div class="border rounded-xl p-6 relative transition-colors hover:border-blue-300 dark:hover:border-blue-700" style="border-color: var(--color-border);">
+                <div class="flex justify-between items-start mb-4">
+                    <h3 class="text-lg font-medium pr-8" style="color: var(--color-text);">
+                        {{ forloop.counter }}. {{ pregunta.texto }}
+                    </h3>
+                    
+                    {% if user.rol == 'admin' or user == banco.creado_por %}
+                    <form method="post" action="{% url 'evaluaciones:pregunta_delete' pregunta.id %}?next={{ request.path }}" class="absolute top-6 right-6" onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta pregunta?');">
+                        {% csrf_token %}
+                        <button type="submit" class="text-red-500 hover:text-red-700 transition-colors" title="Eliminar pregunta">
+                            <i class="bi bi-trash text-lg"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-2 mt-4 ml-4">
+                    {% for alternativa in pregunta.alternativas.all %}
+                        <div class="flex items-center p-3 rounded-lg border {% if alternativa.es_correcta %}bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800/50{% else %}bg-gray-50 border-gray-100 dark:bg-gray-800/50 dark:border-gray-700{% endif %}">
+                            <div class="w-6 h-6 rounded-full border flex items-center justify-center me-3 {% if alternativa.es_correcta %}bg-green-500 border-green-500 text-white{% else %}border-gray-300 dark:border-gray-600{% endif %}">
+                                {% if alternativa.es_correcta %}
+                                    <i class="bi bi-check text-sm font-bold"></i>
+                                {% endif %}
+                            </div>
+                            <span style="color: var(--color-text);" class="{% if alternativa.es_correcta %}font-medium text-green-800 dark:text-green-400{% endif %}">
+                                {{ alternativa.texto }}
+                            </span>
+                            {% if alternativa.es_correcta %}
+                                <span class="ml-auto text-xs font-medium text-green-600 dark:text-green-400 px-2 py-1 bg-green-100 dark:bg-green-900/40 rounded-md">Correcta</span>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-12">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-gray-100 dark:bg-gray-800">
+                <i class="bi bi-question-square text-3xl" style="color: var(--color-text-secondary);"></i>
+            </div>
+            <h3 class="text-lg font-medium mb-2" style="color: var(--color-text);">Este banco está vacío</h3>
+            <p style="color: var(--color-text-secondary);">
+                Aún no has agregado ninguna pregunta a este banco.
+            </p>
+            {% if user.rol == 'admin' or user == banco.creado_por %}
+            <a href="{% url 'evaluaciones:banco_agregar_pregunta' banco.id %}" class="mt-4 inline-block btn-primary px-4 py-2 rounded-xl text-sm font-medium">
+                Agregar primera pregunta
+            </a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
