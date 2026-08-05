@@ -10,8 +10,8 @@ Esta sección documenta los requisitos para la asignatura "Advanced databases wo
 
 **Contexto de la Migración:**
 - **Problema de la Arquitectura Actual:** El sistema actual utiliza bases de datos relacionales (SQLite/PostgreSQL). A medida que crezcan los usuarios, el volumen de registros (evaluaciones, logs de actividad) y la necesidad de análisis masivo, la arquitectura relacional centralizada podría enfrentar cuellos de botella en escalabilidad y rendimiento.
-- **Solución Propuesta:** Migrar hacia un modelo de bases de datos no relacionales (NoSQL) que permita alta disponibilidad, escalabilidad horizontal y procesamiento de grandes volúmenes de datos.
-- **Diseño/Arquitectura:** Modelado de la nueva infraestructura distribuida, definiendo los flujos de datos e integración de servicios Cloud.
+- **Solución Propuesta:** Migrar el **100% del sistema** hacia un modelo de base de datos no relacional (NoSQL) que permita alta disponibilidad, escalabilidad horizontal y procesamiento de grandes volúmenes de datos, erradicando la arquitectura relacional e híbrida.
+- **Diseño/Arquitectura:** Topología de red en AWS mediante VPC con Subredes Públicas (App) y Privadas (Base de Datos). Modelado de la nueva infraestructura distribuida utilizando DynamoDB Global Tables.
 - **Costos:** Estimación y proyección del presupuesto operativo para el uso de las bases de datos NoSQL, servicios cloud e infraestructura.
 
 ### 2. Elección de Estrategia
@@ -35,8 +35,8 @@ Se debe seleccionar y justificar la estrategia de distribución de datos a utili
 *Instrucciones Técnicas y Demostración:*
 1. Crear o subir la aplicación a AWS (en capas).
 2. Conectar la aplicación usando un motor NOSQL (DynamoDB).
-3. Elegir e implementar una arquitectura para la distribución de datos (Particionada).
-4. **Prueba de Resiliencia:** Demostrar el funcionamiento del sistema con todos los nodos y luego probar la arquitectura "botando un nodo" (en el caso de DynamoDB administrado, se puede demostrar la alta disponibilidad regional o simulando fallas en la capa web EC2).
+3. Elegir e implementar una arquitectura para la distribución de datos (Particionada con Global Tables Multi-Región).
+4. **Prueba de Resiliencia:** Demostrar el funcionamiento del sistema con todos los nodos y luego probar la arquitectura "botando un nodo" (Eliminando la tabla de la Región Principal para demostrar el Failover automático a la Región Secundaria en DynamoDB).
 5. **Integración Big Data (Requisitos Examen):** 
    - Crear al menos 5 KPIs relevantes para la ONG ALUMCO.
    - Integrar la aplicación con **AWS Athena**.

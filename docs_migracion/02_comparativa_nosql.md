@@ -29,7 +29,8 @@ DynamoDB es un servicio totalmente administrado por AWS, diseñado para escalabi
 
 ### Ventajas (Pros)
 - **Operación "Serverless":** Cumple con los requisitos Cloud. DynamoDB no requiere gestionar servidores.
-  - *Nota sobre Ansible/Chef/Puppet:* Al ser administrado, **no usas Ansible para la base de datos**. Sin embargo, puedes usar Terraform para crear las tablas de DynamoDB y las instancias EC2 del backend, y usar **Ansible/Chef** para configurar esas instancias EC2 (instalar Python, Django, Nginx), cumpliendo perfectamente con el requisito del ramo.
+  - *Nota sobre Ansible:* Al ser administrado, **no usas Ansible para la base de datos**. Sin embargo, puedes usar Terraform para crear las tablas de DynamoDB y las instancias EC2 del backend, y usar **Ansible** para configurar esas instancias EC2 (instalar Python, Django, Nginx), cumpliendo perfectamente con el requisito del ramo.
+- **Resiliencia Multi-Región (Global Tables):** Permite cumplir con el requisito de "botar un nodo" simulando la caída de una región entera (ej. EE.UU) y demostrando el *Failover* automático hacia una tabla réplica en otra región (ej. Brasil) sin pérdida de servicio.
 - **Alta Disponibilidad y Escalado:** Ideal para picos de tráfico. Si muchos voluntarios entran a dar una evaluación al mismo tiempo, DynamoDB escala los RCU/WCU (Read/Write Capacity Units) automáticamente sin degradar el rendimiento.
 - **Single-Table Design:** Obliga a diseñar la base de datos basada en los patrones de acceso. Con un diseño de tabla única, se pueden obtener perfiles de usuarios, sus cursos y sus notas en una sola consulta muy eficiente.
 
@@ -57,8 +58,8 @@ Cassandra es una base de datos distribuida masivamente escalable diseñada para 
 
 ---
 
-## Conclusión y Recomendación Preliminar
+## Conclusión y Elección Definitiva
 
-1. Si se busca la **mejor adaptabilidad del código actual (Django)** y facilidad para modelar cursos y evaluaciones: **MongoDB** es la opción más amigable.
-2. Si se busca **cumplir con la nube de AWS**, bajo mantenimiento operativo y justificar el uso de **AWS Athena** para analítica: **DynamoDB** ofrece el mejor caso de uso moderno.
-3. Si el equipo quiere un desafío puro de **arquitectura distribuida, infraestructura (Terraform + Ansible)** e integración analítica pesada con **Hadoop**: **Cassandra** forzará el aprendizaje más profundo de infraestructura, aunque funcionalmente sea un "sobre-diseño" para el negocio.
+Tras analizar los requerimientos estrictos del "Advanced Databases Workshop" (100% NoSQL, topología VPC, análisis S3/Athena y la capacidad de "apagar un nodo" para probar resiliencia), **Amazon DynamoDB** es la elección oficial del proyecto. 
+
+Para satisfacer la prueba de caída de nodos (siendo DynamoDB *Serverless*), se utilizarán **DynamoDB Global Tables** (Tablas Globales Multi-Región). Esto permitirá demostrar la tolerancia a fallos eliminando la base de datos en una región en tiempo real, validando que el sistema redirige el tráfico hacia la réplica geográfica sin interrupción del servicio, demostrando un dominio arquitectónico de nivel superior.

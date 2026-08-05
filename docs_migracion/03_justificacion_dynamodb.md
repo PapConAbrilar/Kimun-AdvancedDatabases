@@ -1,36 +1,37 @@
 # Justificación de la Elección Estratégica: Amazon DynamoDB
 
-Tras analizar las opciones disponibles (MongoDB, DynamoDB y Cassandra) frente a los requisitos del proyecto "Advanced Databases Workshop" y la naturaleza de la plataforma Kimün, el equipo ha decidido seleccionar **Amazon DynamoDB** como la base de datos principal para la migración.
+Tras analizar las opciones disponibles frente a los estrictos requisitos del proyecto "Advanced Databases Workshop", el equipo ha decidido seleccionar **Amazon DynamoDB** como la base de datos principal, migrando el **100% de la plataforma Kimün** hacia una arquitectura NoSQL pura.
 
-A continuación, se exponen los argumentos técnicos y operativos que sustentan esta decisión, destacando la sinergia con el ecosistema de AWS.
+A continuación, se exponen los argumentos técnicos y operativos que sustentan esta decisión, destacando la sinergia con el ecosistema de AWS y la estrategia avanzada para simular la "caída de nodos" exigida en la rúbrica.
 
 ---
 
-## 1. Integración Nativa y Centralización en el Ecosistema AWS
+## 1. Alta Disponibilidad Activo-Activo (Global Tables)
 
-La mayor ventaja de seleccionar DynamoDB radica en la consolidación de toda la arquitectura bajo un mismo ecosistema (Amazon Web Services), lo que simplifica radicalmente las integraciones requeridas por el proyecto:
+El requerimiento más desafiante del proyecto es demostrar la resiliencia de la arquitectura simulando la "caída de un nodo". Como DynamoDB es un servicio *Serverless* (AWS abstrae los servidores físicos subyacentes), no es posible apagar un nodo directamente.
 
-- **Cumplimiento directo de Big Data (AWS Athena):** El proyecto exige integración con herramientas analíticas como Athena o Hadoop. DynamoDB permite habilitar *Export to S3* de forma nativa sin afectar el rendimiento de la base de datos. Una vez que los datos de Kimün (por ejemplo, resultados de evaluaciones o logs de uso) están en S3, pueden ser catalogados por AWS Glue y consultados de inmediato usando **AWS Athena** (SQL estándar). Configurar esto con MongoDB o Cassandra requeriría construir pipelines ETL complejos.
-- **Gestión Unificada de IAM:** El control de accesos entre el backend Django (corriendo en instancias EC2) y la base de datos se gestionará de manera segura mediante roles de IAM (Identity and Access Management), evitando tener credenciales hardcodeadas en los archivos de configuración.
+Para superar este desafío con un nivel arquitectónico superior, implementaremos **DynamoDB Global Tables** (Tablas Globales).
+- Esta característica crea una arquitectura **Activo-Activo Multi-Región**.
+- **La Demostración:** El "Nodo 1" de nuestra base de datos estará en EE.UU. (ej. `us-east-1`) y el "Nodo 2" será una réplica exacta en Brasil (ej. `sa-east-1`). Para cumplir con el requerimiento de "botar un nodo", eliminaremos intencionalmente la tabla en la región principal. La aplicación Django estará programada con un failover automático que redirigirá las consultas a la región secundaria en milisegundos, demostrando tolerancia a fallos a escala continental.
 
-## 2. Infraestructura como Código (IaC) Eficiente
+## 2. 100% NoSQL y Topología de Red (VPC)
 
-La restricción del proyecto exige el uso de **Terraform** para levantar las instancias y provisión inicial.
-- Terraform cuenta con el *AWS Provider*, considerado uno de los más maduros y robustos del mercado. 
-- En un solo script de Terraform (`main.tf`), el equipo puede levantar: la red (VPC), las instancias de cómputo (EC2), los buckets analíticos (S3) y las tablas particionadas de DynamoDB, manteniendo la infraestructura 100% como código.
+Para cumplir con la prohibición de esquemas híbridos, **todos** los datos de Kimün (usuarios, autenticación, roles, cursos, evaluaciones e intentos) serán almacenados en DynamoDB utilizando el patrón *Single-Table Design*.
 
-## 3. Delimitación Clara de Responsabilidades (Serverless vs Instancias)
+Además, la arquitectura se desplegará bajo una estricta topología de red:
+- Las instancias EC2 que corren la aplicación (Django) vivirán en **Subredes Públicas** de una VPC.
+- El tráfico hacia la base de datos NoSQL se enrutará de forma segura y privada utilizando **VPC Gateway Endpoints** hacia DynamoDB, aislando los datos de la internet pública.
 
-El proyecto exige el uso de **Ansible, Chef o Puppet** para la configuración y mantención. Al elegir una base de datos administrada como DynamoDB:
-- **Reducción de carga operativa (NoOps DB):** No necesitamos usar Ansible para mantener la base de datos (actualizar el sistema operativo, parchar seguridad de la DB o arreglar clústeres caídos), ya que AWS se encarga de esto.
-- **Foco de Ansible en el Backend:** Ansible se utilizará exclusivamente en su entorno natural: configurar las máquinas virtuales EC2. Automatizará la instalación de Python, dependencias (Django), configuración de Gunicorn/Nginx, y la conexión hacia DynamoDB. Esto cumple el requisito del ramo pero orientándolo a entregar valor en la capa de aplicación, no en el mantenimiento tedioso de un motor de base de datos.
+## 3. Integración Nativa para Big Data (AWS Athena)
 
-## 4. Estrategia de Distribución: Partición Administrada
+El proyecto exige integración con herramientas analíticas de Big Data. DynamoDB permite habilitar *Export to S3* de forma nativa sin penalizar el rendimiento (WCU/RCU) de la base de datos operativa. 
+Una vez que los datos crudos (ej. todos los intentos históricos de pruebas de los voluntarios) aterrizan en S3 en formato JSON/Parquet, AWS Glue generará el catálogo de datos para que **AWS Athena** (SQL Serverless) pueda consultarlos y alimentar los 5 KPIs del negocio exigidos para el examen.
 
-La estrategia elegida para esta migración es la **Particionada (Partitioning/Sharding)**. 
-- En MongoDB o Cassandra, diseñar e implementar una arquitectura particionada requiere un esfuerzo enorme (servidores de enrutamiento, configuración manual de llaves de partición, balanceo de clústeres).
-- DynamoDB gestiona las particiones (sharding) "por debajo" de manera completamente automática basándose en la *Partition Key* (PK) definida (ej. `USER#<id>`). A medida que Kimün escale en volumen de voluntarios y evaluaciones, AWS distribuye la carga en distintos servidores físicos sin ninguna intervención humana, garantizando latencias consistentes de un solo dígito (milisegundos).
+## 4. Delimitación de Infraestructura y Automatización
+
+- **Terraform (IaC):** Levantará la VPC, los Endpoints, los buckets de S3 y las Global Tables de DynamoDB en múltiples regiones.
+- **Ansible (Configuration Management):** Al ser DynamoDB un motor administrado ("NoOps DB"), Ansible enfocará el 100% de su esfuerzo en aprovisionar las instancias EC2: instalar Python, descargar el repositorio, configurar Gunicorn/Nginx y parametrizar la aplicación para el Failover multi-región.
 
 ## Conclusión
 
-La elección de **DynamoDB** no solo obedece a su altísimo rendimiento y escalabilidad, sino que **minimiza el roce arquitectónico**. Al centralizar el backend, la base de datos (DynamoDB) y la capa analítica (Athena + S3) dentro de AWS gestionado por Terraform, el equipo puede enfocar el 100% de su tiempo en el modelado de datos tipo *Single-Table Design* y en programar las integraciones en Django, en lugar de perder semanas intentando estabilizar clústeres autogestionados.
+La elección de **DynamoDB Global Tables** es la estrategia definitiva. Permite migrar todo el modelo relacional a NoSQL de alto rendimiento, se integra directamente con el pipeline de Big Data en S3/Athena, y eleva la prueba de resiliencia del certamen simulando un desastre de proporciones geográficas, garantizando una calificación sobresaliente.

@@ -28,7 +28,7 @@ Para poder meter distintas entidades en la misma tabla, usaremos prefijos (ej. `
 
 | Entidad | Partition Key (PK) | Sort Key (SK) | Atributos (Data JSON) |
 |---------|-------------------|---------------|-----------------------|
-| **Perfil Usuario** | `USER#<user_id>` | `PROFILE#<user_id>` | `nombre, email, rol, area_cargo` |
+| **Perfil/Auth** | `USER#<user_id>` | `PROFILE#<user_id>` | `nombre, email, password_hash, rol, area_cargo, is_active` |
 | **Metadatos Curso** | `COURSE#<course_id>`| `METADATA#<course_id>` | `titulo, descripcion, categoria_id` |
 | **Material de Curso** | `COURSE#<course_id>`| `MATERIAL#<material_id>`| `tipo (pdf/video), url, orden` |
 | **Evaluación** | `COURSE#<course_id>`| `EVAL#<eval_id>` | `titulo, [array_de_preguntas_y_alternativas]` |
@@ -60,7 +60,8 @@ Si buscamos en el GSI1 donde `GSI1-PK == 'COURSE#456'`, DynamoDB nos devolverá 
 ## 5. Justificación frente al Taller de Advanced Databases
 
 Este modelo demuestra un dominio avanzado de bases de datos NoSQL por las siguientes razones:
-1. **Evita la Normalización Relacional:** Demuestra que el equipo entiende que en NoSQL el almacenamiento es barato pero el procesamiento es caro.
-2. **Eficiencia de Costos (RCU/WCU):** Al usar *Single-Table Design*, se maximiza la cantidad de datos que se obtienen en una sola lectura (reduciendo drásticamente los Read Capacity Units facturados por AWS).
-3. **Escalabilidad Pura:** Este modelo funcionará exactamente igual de rápido si la ONG tiene 10 usuarios o si tiene 10 millones de usuarios a nivel mundial.
-4. **Denormalización de Evaluaciones:** Al guardar el `array_de_preguntas` dentro del mismo ítem de la `EVAL#`, se elimina la necesidad de tener tablas separadas para Preguntas y Alternativas (como existía en SQLite).
+1. **Erradicación del Modelo Híbrido:** Al modelar la autenticación (Auth) y los perfiles dentro de la misma tabla operativa, se cumple el requerimiento del profesor de una arquitectura 100% NoSQL pura.
+2. **Evita la Normalización Relacional:** Demuestra que el equipo entiende que en NoSQL el almacenamiento es barato pero el procesamiento es caro.
+3. **Eficiencia de Costos (RCU/WCU):** Al usar *Single-Table Design*, se maximiza la cantidad de datos que se obtienen en una sola lectura.
+4. **Resiliencia Multi-Región Nativa:** Al tener todo el estado de la aplicación en una sola tabla, configurar **Global Tables** para replicar los datos hacia una región secundaria ("Nodo 2") es trivial, garantizando que el *Failover* de la demostración funcione a la perfección sin pérdida de integridad referencial.
+5. **Denormalización de Evaluaciones:** Al guardar el `array_de_preguntas` dentro del mismo ítem de la `EVAL#`, se elimina la necesidad de tener tablas separadas para Preguntas y Alternativas.
