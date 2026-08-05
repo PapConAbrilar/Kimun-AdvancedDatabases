@@ -1,134 +1,224 @@
-# Plan Maestro de Migración a DynamoDB (100% NoSQL)
+# Plan de Implementación de la Migración a DynamoDB (100% NoSQL)
 
-## 1. Propósito y Contexto del Proyecto
+## 1. Propósito
 
-Este documento detalla el plan ejecutable de migración de la plataforma Kimün. 
-Cumpliendo estrictamente con los requerimientos del "Advanced Databases Workshop" (Certamen II y Examen):
-1. **Erradicación Relacional:** El sistema migrará de forma absoluta (100%) a una arquitectura NoSQL (Amazon DynamoDB).
-2. **Topología de Red:** Implementación de una arquitectura Cloud formal mediante VPC, subredes públicas y privadas.
-3. **Resiliencia (Botar un Nodo):** Uso de **DynamoDB Global Tables** (Replicación Activo-Activo Multi-Región) para simular la caída de un nodo geográfico completo sin afectar el servicio.
-4. **Big Data:** Exportación de logs históricos hacia Amazon S3 y consumo analítico mediante AWS Athena.
+Este documento transforma la propuesta de migración de la plataforma Kimün en un plan ejecutable, incremental y detallado. A diferencia de enfoques híbridos, esta solución **erradica por completo el uso de bases de datos relacionales**, cumpliendo estrictamente con los requerimientos del "Advanced Databases Workshop":
 
-## 2. Estrategia Multicuenta (Equipo de 3 Personas)
+- **Amazon DynamoDB** asume el 100% de la persistencia (identidad, catálogo y operación) bajo un patrón *Single-Table Design*.
+- **DynamoDB Global Tables** proporciona replicación Activo-Activo Multi-Región para resolver el requerimiento de resiliencia ("botar un nodo") en un entorno Serverless.
+- **Topología de Red VPC** aísla la base de datos utilizando subredes públicas para los servidores de aplicación y endpoints privados para los datos.
+- **Amazon S3, AWS Glue y Amazon Athena** reciben el histórico analítico para reportes agregados y KPIs de negocio sin cargar la base operacional.
+- **Terraform** aprovisiona la infraestructura y **Ansible** configura las instancias EC2 (Nginx, Gunicorn, Django).
 
-Dado que el equipo opera bajo tres cuentas AWS Academy Learner Lab separadas ($50 USD de límite c/u y restricción severa de roles IAM), el riesgo se aislará de la siguiente manera:
+## 2. Objetivos y Criterios Globales de Éxito
 
-- **Cuenta 1 (DevOps/IaC):** Destinada al ensayo y error de los scripts de Terraform. Si se agota el presupuesto por levantar múltiples recursos de red o Global Tables defectuosas, no afecta al equipo.
-- **Cuenta 2 (SysAdmin/Configuración):** Destinada al despliegue de Ansible sobre las EC2 para automatizar la instalación de Nginx, Gunicorn y el código de Django.
-- **Cuenta 3 (El Entorno "Golden"):** Cuenta inmaculada que solo ejecutará los scripts ya testeados (Terraform + Ansible) el día previo al ensayo general y el día de la presentación. Sus $50 USD aseguran el éxito de la demo.
+### Objetivos
 
-## 3. Arquitectura Objetivo
+1. Migrar absolutamente todas las lecturas y escrituras (Identity, Catalog, Operations) hacia DynamoDB.
+2. Sustituir los `JOIN` relacionales por patrones de acceso explícitos (Single-Table) e Índices Secundarios Globales (GSI).
+3. Demostrar resiliencia arquitectónica simulando la caída de una región geográfica entera sin interrupción del servicio.
+4. Derivar los reportes globales y KPIs de negocio hacia S3 y Athena.
+5. Operar dentro del límite presupuestario estricto ($50 USD) de las cuentas AWS Academy Learner Lab.
+
+### Criterios de Aceptación
+
+- 100% de los registros relacionales heredados están migrados a DynamoDB y conciliados.
+- El modelo de datos es capaz de renderizar el Perfil, los Cursos del usuario y sus Evaluaciones en **una sola consulta a la base de datos**.
+- La aplicación sobrevive (Failover automático en menos de 2 segundos) a la eliminación manual de la tabla principal en la región primaria de AWS.
+- El despliegue de infraestructura y configuración ocurre mediante comandos de IaC (Terraform y Ansible) sin requerir clics manuales en la consola de AWS (Zero-Click Deployment).
+- Los KPIs analíticos se resuelven mediante consultas SQL en Athena con latencia menor a 10 segundos.
+
+## 3. Alcance (100% NoSQL)
+
+Se migrarán todos los dominios de la aplicación desde el motor relacional heredado (SQLite/PostgreSQL) hacia DynamoDB.
+
+| Dominio | Origen Relacional | Destino (DynamoDB Single-Table) |
+|---|---|---|
+| Identidad y Auth | `Usuario`, `Roles` | Ítem `PROFILE#` con `password_hash` y metadatos. |
+| Catálogo | `Categoria`, `Curso`, `Material` | Ítem `METADATA#` para configuración de cursos. |
+| Inscripciones | `InscripcionCurso` | Ítem de relación `COURSE#` bajo la partición del usuario. |
+| Evaluaciones | `Evaluacion`, `Pregunta`, `Alternativa` | Documento desnormalizado (preguntas embebidas) en `EVAL#`. |
+| Progreso | `ClaseCompletada` | Ítem de seguimiento `PROGRESS#`. |
+| Intentos | `IntentoEvaluacion` | Ítem transaccional `ATTEMPT#` con respuestas exactas. |
+
+## 4. Arquitectura Objetivo y Topología de Red
+
+El despliegue se realizará sobre una Virtual Private Cloud (VPC) para aislar las cargas de trabajo:
 
 ```text
 Usuarios / Profesor
    |
 [ Internet Gateway ]
    |
-   |-- VPC (Virtual Private Cloud)
+   |-- VPC (10.0.0.0/16)
        |
-       |-- [ Subred Pública ]
+       |-- [ Subred Pública ] (10.0.1.0/24)
        |     |-- Elastic IP
-       |     |-- Instancia EC2 (t3.small) [Asignada con LabRole preexistente]
-       |         |-- Nginx + Gunicorn + Django App
+       |     |-- Instancia EC2 (t3.small) [Rol: LabRole]
+       |         |-- Nginx (Reverse Proxy) + Gunicorn + Django App
        |
-       |-- [ Subred Privada ]
+       |-- [ Subred Privada ] (10.0.2.0/24)
              |-- VPC Gateway Endpoint (Enruta tráfico interno hacia DynamoDB)
              |
              |---- [ AWS DynamoDB Global Table ] (Base de Datos Operativa)
-             |        - Región Primaria (Ej. us-east-1) - "Nodo 1"
-             |        - Región Secundaria (Ej. sa-east-1) - "Nodo 2"
+             |        - Región Primaria (us-east-1) - "Nodo 1"
+             |        - Región Secundaria (sa-east-1) - "Nodo 2"
              |
-             |---- [ Amazon S3 ] (Almacenamiento Analítico)
+             |---- [ Amazon S3 ] (Almacenamiento Analítico Histórico)
                       |
-                      +-- [ AWS Glue Crawler ] (Catálogo de Datos)
+                      +-- [ AWS Glue Crawler ] (Catálogo de Datos Parquet/JSON)
                       +-- [ AWS Athena ] (Motor SQL Serverless para Examen)
 ```
 
-## 4. Diseño Físico de DynamoDB (Single-Table Design)
+## 5. Diseño Físico de DynamoDB (Single-Table Design)
 
-Todo el modelo de datos existirá en una única tabla para maximizar la eficiencia y reducir costos.
+### Tabla y Capacidad
 
-- **Nombre de Tabla:** `KimunData`
-- **Modo de Facturación:** `PAY_PER_REQUEST`
-- **Cifrado:** AWS Managed Key.
-- **Índice Global (GSI1):** Necesario para búsquedas inversas (Ej. Alumnos por curso).
+- Nombre de la tabla: `KimunData-Demo`
+- Clave primaria compuesta: `PK` y `SK`, ambas de tipo `String`.
+- Capacidad inicial: `PAY_PER_REQUEST` (Evita cobros fijos por hora).
+- Replicación: Habilitada hacia una segunda región (Global Tables).
+- Cifrado en reposo: Habilitado con AWS Managed Key (por compatibilidad de permisos IAM en Learner Labs).
 
 ### Nomenclatura de Ítems
-| Entidad | Partition Key (PK) | Sort Key (SK) | GSI1-PK | GSI1-SK |
-|---|---|---|---|---|
-| **Perfil/Auth** | `USER#<user_id>` | `PROFILE#<user_id>` | - | - |
-| **Curso/Catálogo** | `COURSE#<curso_id>` | `METADATA#<curso_id>` | - | - |
-| **Inscripción** | `USER#<user_id>` | `COURSE#<curso_id>` | `COURSE#<curso_id>` | `USER#<user_id>` |
-| **Intento Eval** | `USER#<user_id>` | `ATTEMPT#<eval_id>#<timestamp>` | `EVAL#<eval_id>` | `USER#<user_id>#<timestamp>` |
 
-## 5. Cambios Requeridos en Django
+| Tipo de Ítem | `PK` (Partition Key) | `SK` (Sort Key) | Atributos relevantes (JSON) |
+|---|---|---|---|
+| **Perfil/Auth** | `USER#<usuario_id>` | `PROFILE#<usuario_id>` | `password_hash`, `email`, `role`, `is_active`, `schema_version` |
+| **Curso** | `COURSE#<curso_id>` | `METADATA#<curso_id>` | `title`, `description`, `category_id`, `is_published` |
+| **Material** | `COURSE#<curso_id>` | `MATERIAL#<material_id>` | `type`, `url`, `order`, `duration_minutes` |
+| **Inscripción** | `USER#<usuario_id>` | `COURSE#<curso_id>` | `status`, `assigned_at`, `GSI1PK`, `GSI1SK` |
+| **Evaluación** | `COURSE#<curso_id>` | `EVAL#<evaluacion_id>` | `title`, `[array_de_preguntas_y_alternativas]`, `max_attempts` |
+| **Intento** | `USER#<usuario_id>` | `ATTEMPT#<eval_id>#<timestamp>` | `score`, `passed`, `answers`, `GSI1PK`, `GSI1SK` |
 
-### 1. Capa de Repositorios
-La aplicación dejará de usar el ORM de Django tradicional. Se creará un módulo `kimun/data_access/` que interactuará directamente con `boto3`.
+### Índice Invertido `GSI1`
 
-### 2. Autenticación AWS (IAM Segura)
-Prohibido usar Access Keys/Secret Keys en código. Django heredará mágicamente los permisos del **Instance Profile (`LabRole`)** que Terraform asigne a la máquina EC2.
+Como DynamoDB no permite escanear la base de datos de manera eficiente para consultas inversas, se configurará un Índice Secundario Global (GSI).
 
-### 3. Script de Failover Multi-Región (Para "Botar el Nodo")
-El corazón de la presentación será la tolerancia a fallos. Django debe programarse para capturar caídas de la región principal:
+| Consulta Resuelta | `GSI1PK` (Llave de Partición GSI) | `GSI1SK` (Llave de Ordenación GSI) |
+|---|---|---|
+| Alumnos inscritos en un Curso específico | `COURSE#<curso_id>` | `USER#<usuario_id>` |
+| Intentos históricos por Evaluación | `EVAL#<evaluacion_id>` | `USER#<usuario_id>#<timestamp>` |
+
+## 6. Cambios Requeridos en Django
+
+### 1. Reemplazo del ORM (Capa de Acceso)
+
+Se creará el paquete `kimun/data_access/` que abstraerá las consultas directas a DynamoDB. El ORM de Django (e.g., `Model.objects.filter()`) quedará obsoleto. Las vistas utilizarán servicios de dominio.
+
+### 2. Autenticación IAM Segura (`LabRole`)
+
+Queda estrictamente prohibido utilizar credenciales `AWS_ACCESS_KEY_ID` quemadas en código o en variables de entorno `.env`. Django, a través de la librería `boto3`, obtendrá automáticamente credenciales temporales utilizando el `Instance Profile` de la máquina EC2 asociado al rol educacional `LabRole`.
+
+### 3. Failover Automático Multi-Región (Prueba de Resiliencia)
+
+Para cumplir la rúbrica de "Botar un Nodo", la capa de datos de Django debe capturar excepciones de conexión (`ClientError` o `ResourceNotFoundException`) e instantáneamente pivotar hacia la región de contingencia:
 
 ```python
 import boto3
 from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_dynamo_table():
     try:
-        # Intenta conectar al "Nodo 1" (Región Principal)
+        # Intento de conexión al "Nodo 1" (Región Primaria)
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-        table = dynamodb.Table('KimunData')
-        table.load() # Obliga a verificar existencia
+        table = dynamodb.Table('KimunData-Demo')
+        table.load() # Obliga a verificar existencia física de la tabla
         return table
-    except ClientError:
-        # Si la tabla no existe (Nodo botado), hace failover al "Nodo 2"
+    except ClientError as e:
+        logger.warning(f"Falla en Nodo Primario (us-east-1). Ejecutando Failover. Detalles: {e}")
+        # Conexión de contingencia al "Nodo 2" (Región Secundaria)
         dynamodb_replica = boto3.resource('dynamodb', region_name='sa-east-1')
-        return dynamodb_replica.Table('KimunData')
+        return dynamodb_replica.Table('KimunData-Demo')
 ```
 
-## 6. Estrategia de Migración y Sembrado (Seed)
+## 7. Estrategia de Migración de Datos (Backfill)
 
-Dado que no se mantendrá una base relacional híbrida, el día de la presentación se realizará un **Sembrado Crudo** (Backfill simulado) para alimentar DynamoDB rápidamente.
+Como la base de datos relacional será destruida, el sistema requiere un proceso robusto para inyectar datos de prueba funcionales el día de la presentación.
 
-1. Un script de Python (`python manage.py seed_dynamodb`) leerá un archivo JSON local con usuarios, cursos y notas falsas generadas previamente.
-2. Inyectará estos datos masivamente a DynamoDB utilizando `BatchWriteItem`.
-3. Inyectará una porción de datos históricos hacia S3 para alimentar a Athena.
+Se implementará el comando de Django:
+```text
+python manage.py seed_dynamodb --batch-size 100 --dry-run
+```
 
-## 7. Fases de Ejecución
+El comando deberá:
+1. Leer un archivo `seed_data.json` o utilizar factorías (Faker) para generar 100 usuarios, 5 cursos y 1000 intentos falsos.
+2. Formatear los registros bajo la estructura Single-Table.
+3. Utilizar `BatchWriteItem` de `boto3` para inyectar bloques de 25 registros simultáneos.
+4. Identificar `UnprocessedItems` para reintentos exponenciales.
+5. Inyectar un subset de estos datos crudos en formato JSON Lines al bucket de S3 para análisis de Athena.
 
-| Fase | Tareas Principales | Salida / Entregable |
-|---|---|---|
-| **1. IaC (Terraform)** | Redactar `main.tf`. Levantar VPC, EC2, Endpoint, S3 y Global Tables. | Infraestructura efímera capaz de ser creada/destruida en 5 mins. |
-| **2. Automatización (Ansible)** | Redactar playbooks para instalar Nginx, Gunicorn, clonar repo y configurar dependencias de Python en EC2. | Despliegue sin intervención humana (Cero clics SSH). |
-| **3. Backend (Django)** | Programar repositorios NoSQL, script de Failover e inyección de datos. | App web funcionando 100% sobre DynamoDB (LocalStack). |
-| **4. Integración Big Data** | Definir los 5 KPIs del negocio. Ejecutar AWS Glue sobre S3 y guardar consultas SQL en Athena. | Consultas preparadas para el Dashboard. |
-| **5. Ensayo General** | Correr el pipeline completo (Terraform -> Ansible -> Seed) en la **Cuenta 3**. | Validación de tiempos de despliegue y consumo de USD. |
+## 8. Fases de Ejecución y Estrategia Multicuenta
 
-## 8. Pruebas y Observabilidad
+Dado que el equipo opera bajo tres cuentas AWS Learner Lab separadas ($50 USD c/u), el riesgo se distribuye de la siguiente manera:
 
-- **Pruebas Locales:** Para no gastar capacidad AWS, el equipo desarrollará usando *DynamoDB Local* (Docker) o `moto` para mockear `boto3`.
-- **CloudWatch:** Se configurarán paneles (Dashboard) en AWS para visualizar el consumo de `ConsumedReadCapacityUnits`, garantizando que la inyección de datos no sature la tabla ni genere costos excesivos.
-- **Nginx Logs:** Disponibles en `/var/log/nginx/` vía Ansible para monitorear errores de la aplicación web.
+- **Cuenta 1 (DevOps):** Pruebas destructivas de los scripts de Terraform (VPC, Redes, Endpoints, Global Tables).
+- **Cuenta 2 (SysAdmin):** Pruebas de los playbooks de Ansible (Instalación de Nginx, Gunicorn y dependencias de Django en EC2).
+- **Cuenta 3 (Entorno "Golden"):** Cuenta inmaculada. Solo se usarán los $50 USD el día del ensayo general y el día de la presentación oficial.
 
-## 9. FinOps y Seguridad (Restricciones Learner Lab)
+### Secuencia de Implementación
 
-1. **Permisos IAM:** Queda prohibido usar `aws_iam_role` en Terraform. Todos los permisos deben apuntar obligatoriamente al ARN del rol educacional provisto por AWS: `arn:aws:iam::<ACCOUNT_ID>:role/LabRole`.
-2. **Cero Balanceadores:** No se usará Application Load Balancer (ALB) para evitar su costo fijo (~$16 USD). El tráfico web fluirá directo a la Elastic IP de la EC2.
-3. **Cero Endpoints Costosos:** Solo se usará *Gateway Endpoint* para DynamoDB, el cual es gratuito, evitando los *Interface Endpoints* pagados.
-4. **Terraform Destroy:** Al estar usando Global Tables, se cobran transferencias inter-región constantes. **Es obligatorio ejecutar `terraform destroy` inmediatamente finalizada la clase o prueba de integración.**
+| Fase | Duración | Actividades Principales | Entregable |
+|---|---:|---|---|
+| 1. Modelado Data | 2 días | Diseñar mapeo de entidades de SQLite al Single-Table Design. | Documento de diseño validado. |
+| 2. Infraestructura | 3 días | Crear `main.tf`. Levantar VPC, Subredes, EC2 (LabRole), Endpoint S3/Dynamo, y Global Tables. | Red funcional y segura en Cuenta 1. |
+| 3. Configuración | 3 días | Playbooks Ansible para aprovisionar EC2 sin intervención manual. | EC2 ejecutando Nginx en Cuenta 2. |
+| 4. Backend Django | 5 días | Refactor de repositorios NoSQL, inyección `boto3`, y failover. | App web funcional localmente usando LocalStack. |
+| 5. Integración Analítica | 2 días | Configurar crawler de Glue y diseñar 5 consultas SQL para Athena. | Dashboard SQL funcional. |
+| 6. Ensayo General | 1 día | `terraform apply` -> `ansible-playbook` -> Demostración -> `terraform destroy`. | Cronómetro de tiempos de despliegue y validación de costos. |
 
-## 10. Guion de Demostración Final (Criterios de Éxito)
+## 9. Pruebas y Observabilidad
 
-1. **Cero Clics Iniciales:** Ejecutar Terraform y Ansible frente al profesor, demostrando IaC y Configuration Management puro. Mostrar la web en línea.
-2. **NoSQL en Vivo:** Hacer login y rendir una evaluación, demostrando que los datos caen en el `us-east-1` de DynamoDB.
-3. **Botar el Nodo:** 
-   - Abrir consola AWS y *borrar* intencionalmente la tabla en la Región Primaria.
-   - Refrescar el LMS.
-   - Demostrar que el script `try/except` redirigió el tráfico hacia la Región Secundaria en Sudamérica y los datos siguen ahí.
-4. **Dashboard Big Data:** 
-   - Ejecutar el Crawler de AWS Glue frente al profesor.
-   - Mostrar el Dashboard de Athena consumiendo la data de S3 para responder a los 5 KPIs.
-5. **Cierre FinOps:** Ejecutar `terraform destroy` para confirmar la naturaleza efímera y control de costos de la solución.
+### Automatizadas y Locales
+- Para el desarrollo local sin generar costos en AWS, el backend se desarrollará utilizando el contenedor Docker `amazon/dynamodb-local`.
+- Pruebas unitarias evaluarán la correcta generación de claves compuestas (`PK`, `SK`).
+- Pruebas de carga evaluarán el comportamiento del script de Failover Multi-Región utilizando la librería `moto` para mockear interrupciones de red.
+
+### Monitoreo en AWS (CloudWatch)
+Crear un panel de métricas con:
+- `ConsumedReadCapacityUnits` y `ConsumedWriteCapacityUnits` para vigilar que el comando de Backfill no agote el presupuesto.
+- Alertas por sobreconsumo en la región primaria y secundaria.
+
+### Nginx Logs
+- Ansible configurará la recolección de logs de Gunicorn y Nginx (`/var/log/nginx/error.log`) para depuración rápida de la capa web.
+
+## 10. Seguridad, Permisos y FinOps
+
+### Restricciones Críticas IAM (Learner Lab)
+- Está **estrictamente prohibido** el uso del recurso `aws_iam_role` en Terraform.
+- Todo servicio (EC2, Glue) debe heredar el ARN del rol educacional preexistente: `arn:aws:iam::<ACCOUNT_ID>:role/LabRole`.
+
+### FinOps (Control de Costos - $50 Límite)
+- **Cero Balanceadores:** Se prescindirá del Application Load Balancer (ALB) para ahorrar el costo base de ~$16 USD/mes. El tráfico fluirá directamente a la Elastic IP.
+- **Costos de Global Tables:** La replicación de DynamoDB cobra por transferencia inter-región (WRU/RRU). 
+- **Destrucción Obligatoria:** Es **mandatorio** ejecutar `terraform destroy` inmediatamente después de cada prueba de integración o ensayo. Bajo ninguna circunstancia la infraestructura debe quedar encendida de un día para otro.
+
+## 11. Guion de Demostración Final (Criterios de Evaluación)
+
+Este es el flujo exacto que el equipo presentará al profesor para garantizar la calificación máxima:
+
+### Parte 1: IaC y Despliegue (Cero Clics)
+1. El equipo abre la terminal y ejecuta `terraform apply -auto-approve`. Se explica la topología VPC y cómo se levantan las Global Tables.
+2. Se ejecuta `ansible-playbook playbook.yml`. Se explica que la EC2 se configura automáticamente.
+3. Se abre el navegador en la IP pública y Kimün está operativo.
+
+### Parte 2: Funcionamiento Operacional (100% NoSQL)
+1. Se registra un usuario, se inscribe en un curso y rinde una evaluación en vivo.
+2. Se abre la consola de AWS DynamoDB (`us-east-1`) y se muestra al profesor cómo el registro fue insertado eficientemente mediante *Single-Table Design*.
+
+### Parte 3: Prueba de Resiliencia ("Botar el Nodo")
+1. **Contexto:** Se explica al profesor que como DynamoDB es *Serverless*, el concepto de "Nodos" se elevó al nivel de "Regiones" (Activo-Activo).
+2. **Caos:** En vivo, desde la consola de AWS, el equipo selecciona la tabla `KimunData-Demo` en la región principal y presiona **Eliminar Tabla**.
+3. **Validación:** Se refresca la plataforma web de Kimün. Gracias al script `try/except` de Django, el sistema responde instantáneamente extrayendo los datos desde el "Nodo 2" (Región Secundaria en Sudamérica), logrando una demostración impecable de resiliencia ante desastres.
+
+### Parte 4: Big Data Analytics
+1. Se ejecuta el Crawler de AWS Glue sobre el bucket S3 (donde se exportaron logs de intentos en JSON).
+2. Se abre Amazon Athena.
+3. Se ejecutan las consultas SQL analíticas sobre el data lake sin cargar la base de datos operacional.
+4. Se presentan los 5 KPIs de negocio resultantes.
+
+### Parte 5: Cierre
+1. El equipo ejecuta `terraform destroy` para confirmar la naturaleza efímera del proyecto y control de costos FinOps.
