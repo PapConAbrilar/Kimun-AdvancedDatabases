@@ -2,7 +2,14 @@ from django.contrib.auth.backends import BaseBackend
 from django.contrib.auth.hashers import check_password
 from usuarios.repository import UsuarioRepository
 
+class MockMeta:
+    class MockPK:
+        def value_to_string(self, obj):
+            return str(obj.pk)
+    pk = MockPK()
+
 class DynamoDBUser:
+    _meta = MockMeta()
     """
     Objeto simulado (Duck-Typing) que se hace pasar por un usuario de Django.
     Evita que el framework se rompa al no usar el ORM relacional.
@@ -31,6 +38,10 @@ class DynamoDBUser:
     def save(self, *args, **kwargs):
         # Evita errores si Django intenta guardar el 'last_login'
         pass
+
+    def get_session_auth_hash(self):
+        # Requerido por Django para rotar sesiones
+        return "dynamodb-auth-hash-static"
 
 
 class DynamoDBAuthBackend(BaseBackend):
