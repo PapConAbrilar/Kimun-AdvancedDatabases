@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 from usuarios.repository import UsuarioRepository
 from cursos.repository import CursoRepository
 from evaluaciones.repository import EvaluacionRepository
+from django.contrib.auth.hashers import make_password
 import random
 import time
 
@@ -16,7 +17,7 @@ class Command(BaseCommand):
             self.stdout.write("1. Creando usuarios...")
             profesor = UsuarioRepository.create_user(
                 email="profesor@kimun.cl",
-                password_hash="pbkdf2_sha256$870000$mockhash123", # Password dummy
+                password_hash=make_password("mockhash123"), # Password válido
                 rol="docente",
                 nombre="Profesor Kimun"
             )
@@ -26,7 +27,7 @@ class Command(BaseCommand):
                 email = f"alumno{i}@kimun.cl"
                 alumno = UsuarioRepository.create_user(
                     email=email,
-                    password_hash="pbkdf2_sha256$870000$mockhash123",
+                    password_hash=make_password("mockhash123"),
                     rol="alumno",
                     nombre=f"Alumno {i}"
                 )
