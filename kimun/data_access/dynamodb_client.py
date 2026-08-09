@@ -51,10 +51,22 @@ class DynamoDBClient:
             return table_replica
 
     @classmethod
+    def _execute_with_failover(cls, operation, *args, **kwargs):
+        try:
+            table = cls.get_table()
+            return operation(table, *args, **kwargs)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                logger.warning("Tabla cacheada ya no existe (borrada en caliente). Forzando limpieza de caché y reintento con Failover.")
+                cls._table_cache = None
+                table = cls.get_table()
+                return operation(table, *args, **kwargs)
+            raise
+
+    @classmethod
     def put_item(cls, item_data):
-        # 1. Escribir en la tabla principal
-        table = cls.get_table()
-        table.put_item(Item=item_data)
+        # 1. Escribir en la tabla principal (con reintento de failover)
+        cls._execute_with_failover(lambda t: t.put_item(Item=item_data))
         
         # 2. Replicación a nivel de aplicación (Dual-Write)
         # Esto soluciona la restricción de Learner Lab que nos impidió usar Global Tables nativas.
@@ -71,23 +83,15 @@ class DynamoDBClient:
 
     @classmethod
     def get_item(cls, pk, sk):
-        table = cls.get_table()
-        response = table.get_item(
-            Key={
-                'PK': pk,
-                'SK': sk
-            }
+        response = cls._execute_with_failover(
+            lambda t: t.get_item(Key={'PK': pk, 'SK': sk})
         )
         return response.get('Item')
 
     @classmethod
     def delete_item(cls, pk, sk):
-        table = cls.get_table()
-        table.delete_item(
-            Key={
-                'PK': pk,
-                'SK': sk
-            }
+        cls._execute_with_failover(
+            lambda t: t.delete_item(Key={'PK': pk, 'SK': sk})
         )
         
         # Dual-Delete para la réplica manual
@@ -106,29 +110,29 @@ class DynamoDBClient:
     def query_by_pk(cls, pk, sk_prefix=None):
         from boto3.dynamodb.conditions import Key
         
-        table = cls.get_table()
-        
         if sk_prefix:
             key_condition = Key('PK').eq(pk) & Key('SK').begins_with(sk_prefix)
         else:
             key_condition = Key('PK').eq(pk)
             
-        response = table.query(KeyConditionExpression=key_condition)
+        response = cls._execute_with_failover(
+            lambda t: t.query(KeyConditionExpression=key_condition)
+        )
         return response.get('Items', [])
 
     @classmethod
     def query_gsi1(cls, gsi1pk, gsi1sk_prefix=None):
         from boto3.dynamodb.conditions import Key
         
-        table = cls.get_table()
-        
         if gsi1sk_prefix:
             key_condition = Key('GSI1PK').eq(gsi1pk) & Key('GSI1SK').begins_with(gsi1sk_prefix)
         else:
             key_condition = Key('GSI1PK').eq(gsi1pk)
             
-        response = table.query(
-            IndexName='GSI1',
-            KeyConditionExpression=key_condition
+        response = cls._execute_with_failover(
+            lambda t: t.query(
+                IndexName='GSI1',
+                KeyConditionExpression=key_condition
+            )
         )
         return response.get('Items', [])
