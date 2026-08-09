@@ -52,8 +52,21 @@ class DynamoDBClient:
 
     @classmethod
     def put_item(cls, item_data):
+        # 1. Escribir en la tabla principal
         table = cls.get_table()
         table.put_item(Item=item_data)
+        
+        # 2. Replicación a nivel de aplicación (Dual-Write)
+        # Esto soluciona la restricción de Learner Lab que nos impidió usar Global Tables nativas.
+        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
+        table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
+        try:
+            dynamodb_replica = boto3.resource('dynamodb', region_name=secondary_region)
+            table_replica = dynamodb_replica.Table(table_name)
+            table_replica.put_item(Item=item_data)
+        except Exception as e:
+            logger.warning(f"Error en replicación dual a {secondary_region}: {e}")
+            
         return True
 
     @classmethod
@@ -76,6 +89,17 @@ class DynamoDBClient:
                 'SK': sk
             }
         )
+        
+        # Dual-Delete para la réplica manual
+        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
+        table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
+        try:
+            dynamodb_replica = boto3.resource('dynamodb', region_name=secondary_region)
+            table_replica = dynamodb_replica.Table(table_name)
+            table_replica.delete_item(Key={'PK': pk, 'SK': sk})
+        except Exception as e:
+            logger.warning(f"Error borrando en réplica {secondary_region}: {e}")
+            
         return True
 
     @classmethod
