@@ -14,6 +14,9 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write("Iniciando carga de datos en DynamoDB...")
         try:
+            self._asegurar_usuario(
+                "admin@kimun.cl", "admin", "Administración Kimün"
+            )
             docente = self._asegurar_usuario(
                 "profesor@kimun.cl", "docente", "Profesor Kimün"
             )
@@ -51,6 +54,11 @@ class Command(BaseCommand):
 
             for estudiante in estudiantes:
                 for evaluacion in evaluaciones:
+                    intentos = EvaluacionRepository.get_intentos_por_usuario(
+                        estudiante["email"], evaluacion["id"]
+                    )
+                    if intentos:
+                        continue
                     puntaje = random.randint(40, 100)
                     EvaluacionRepository.guardar_intento(
                         usuario_email=estudiante["email"],
