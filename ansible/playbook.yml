@@ -1,0 +1,124 @@
+---
+- name: Configurar Servidor Web Kimun en EC2
+  hosts: all
+  become: yes
+  vars:
+    project_dir: "/opt/kimun"
+    repo_url: "https://github.com/PapConAbrilar/Kimun-AdvancedDatabases.git"
+    venv_dir: "/opt/kimun/venv"
+    python_bin: "{{ venv_dir }}/bin/python3"
+    pip_bin: "{{ venv_dir }}/bin/pip"
+
+  tasks:
+    - name: Actualizar cache de apt
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Instalar dependencias del sistema
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - nginx
+        state: present
+
+    - name: Clonar el repositorio del proyecto
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ project_dir }}"
+        version: main
+        force: yes
+
+    - name: Crear entorno virtual de Python
+      command: python3 -m venv {{ venv_dir }}
+      args:
+        creates: "{{ venv_dir }}/bin/python"
+
+    - name: Instalar dependencias de Python (requirements.txt)
+      pip:
+        requirements: "{{ project_dir }}/requirements.txt"
+        executable: "{{ pip_bin }}"
+      ignore_errors: yes # En caso de que el requirements tenga algún paquete roto en esta demo
+
+    - name: Asegurar que boto3 (DynamoDB) y gunicorn estan instalados
+      pip:
+        name:
+          - boto3
+          - gunicorn
+          - django
+        executable: "{{ pip_bin }}"
+
+    - name: Ejecutar migraciones de Django (solo auth local si es que existe aun)
+      command: "{{ python_bin }} manage.py migrate"
+      args:
+        chdir: "{{ project_dir }}"
+      ignore_errors: yes
+
+    - name: Recolectar archivos estaticos de Django
+      command: "{{ python_bin }} manage.py collectstatic --noinput"
+      args:
+        chdir: "{{ project_dir }}"
+      ignore_errors: yes
+
+    - name: Crear archivo de servicio Systemd para Gunicorn
+      copy:
+        dest: /etc/systemd/system/kimun.service
+        content: |
+          [Unit]
+          Description=gunicorn daemon for Kimun
+          After=network.target
+
+          [Service]
+          User=root
+          Group=www-data
+          WorkingDirectory={{ project_dir }}
+          ExecStart={{ venv_dir }}/bin/gunicorn --access-logfile - --workers 3 --bind unix:{{ project_dir }}/kimun.sock kimun.wsgi:application
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Recargar daemon de Systemd y arrancar Gunicorn
+      systemd:
+        name: kimun
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Configurar Nginx para que apunte a Gunicorn
+      copy:
+        dest: /etc/nginx/sites-available/kimun
+        content: |
+          server {
+              listen 80;
+              server_name _;
+
+              location = /favicon.ico { access_log off; log_not_found off; }
+              
+              location /static/ {
+                  root {{ project_dir }};
+              }
+
+              location / {
+                  include proxy_params;
+                  proxy_pass http://unix:{{ project_dir }}/kimun.sock;
+              }
+          }
+
+    - name: Habilitar sitio Kimun en Nginx
+      file:
+        src: /etc/nginx/sites-available/kimun
+        dest: /etc/nginx/sites-enabled/kimun
+        state: link
+
+    - name: Eliminar sitio por defecto de Nginx
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Reiniciar Nginx
+      service:
+        name: nginx
+        state: restarted
