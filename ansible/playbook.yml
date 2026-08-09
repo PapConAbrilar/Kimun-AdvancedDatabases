@@ -29,7 +29,7 @@
       git:
         repo: "{{ repo_url }}"
         dest: "{{ project_dir }}"
-        version: main
+        version: development
         force: yes
 
     - name: Crear entorno virtual de Python
