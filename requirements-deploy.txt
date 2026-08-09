@@ -8,8 +8,8 @@ Django>=6.0,<6.1
 asgiref==3.11.1
 sqlparse==0.5.5
 
-# --- Database ---
-psycopg2-binary==2.9.11
+# --- Persistencia NoSQL ---
+boto3>=1.34.0
 
 # --- Environment & Config ---
 python-dotenv==1.2.2

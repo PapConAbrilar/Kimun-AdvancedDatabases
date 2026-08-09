@@ -1,444 +1,339 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth import logout
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import HttpResponseForbidden
-from django.contrib.auth import get_user_model
 from django import forms
-from django.db import models
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.hashers import check_password, make_password
 from django.core.paginator import Paginator
-from cursos.models import Curso, InscripcionCurso
+from django.http import Http404
+from django.shortcuts import redirect, render
+from django.utils import timezone
+
+from certificados.repository import CertificadoRepository
+from cursos.repository import CursoRepository, InscripcionRepository
+from evaluaciones.repository import EvaluacionRepository
+from reportes.repository import ReporteRepository
 from usuarios.decorators import admin_required
+from usuarios.forms import UsuarioForm
+from usuarios.repository import AreaCargoRepository, UsuarioRepository
+from usuarios.utils import notificar_inscripcion, verificar_recordatorios
 
-Usuario = get_user_model()
+
+def _user_email(user):
+    return user.email or user.username
 
 
-class UsuarioForm(forms.ModelForm):
-    password = forms.CharField(widget=forms.PasswordInput, required=False, label='Contraseña')
-    
-    class Meta:
-        model = Usuario
-        fields = ['username', 'first_name', 'last_name', 'email', 'rut', 'rol', 'cargo']
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['username'].required = True
-        self.fields['rut'].required = True
-    
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        password = self.cleaned_data.get('password')
-        if password:
-            user.set_password(password)
-        if commit:
-            user.save()
-        return user
+def _required(value, message="Registro no encontrado."):
+    if not value:
+        raise Http404(message)
+    return value
+
+
+def _area_groups(areas):
+    collaborator_names = {
+        "Profesional de Atención Directa",
+        "Técnico de Atención Directa",
+        "Asistente de Trato Directo",
+        "Auxiliares de Servicio",
+        "Manipuladores de Alimento",
+    }
+    admin_names = {"Administración y Apoyo", "Directivos"}
+    teacher_names = {"Docente Interno", "Docente Externo"}
+    return {
+        "areas": areas,
+        "areas_colaborador": [item for item in areas if item["nombre"] in collaborator_names],
+        "areas_admin": [item for item in areas if item["nombre"] in admin_names],
+        "areas_docente": [item for item in areas if item["nombre"] in teacher_names],
+    }
 
 
 def login_view(request):
-    if request.method == 'POST':
-        from django.contrib.auth import authenticate, login
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip().lower()
+        password = request.POST.get("password", "")
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('inicio')
-        else:
-            messages.error(request, 'Usuario o contraseña incorrectos.')
-    
-    return render(request, 'registration/login.html', {'form': {}})
+            return redirect("inicio")
+        messages.error(request, "Usuario o contraseña incorrectos.")
+    return render(request, "registration/login.html", {"form": {}})
 
 
 def logout_view(request):
     logout(request)
-    messages.success(request, 'Has cerrado sesión correctamente.')
-    return redirect('usuarios:login')
+    messages.success(request, "Has cerrado sesión correctamente.")
+    return redirect("usuarios:login")
 
 
-@login_required(login_url='usuarios:login')
+@login_required(login_url="usuarios:login")
 def inicio(request):
-    from certificados.models import Certificado
-    from django.utils import timezone
-    
-    context = {}
+    email = _user_email(request.user)
     now = timezone.now()
-    
-    # Parche para usuarios 100% NoSQL (DynamoDBUser)
-    if type(request.user).__name__ == 'DynamoDBUser':
-        if request.user.rol == 'admin':
-            context['total_usuarios'] = 5
-            context['total_cursos'] = 3
-            context['total_inscripciones'] = 15
-            context['total_certificados'] = 0
-            context['cursos_con_mas_inscritos'] = []
-            context['ultimas_inscripciones'] = []
-        else:
-            context['mis_cursos_count'] = 0
-            context['mis_inscripciones_count'] = 0
-            context['mis_inscripciones'] = []
-            context['mis_certificados_count'] = 0
-            context['cursos_cercanos'] = []
-        return render(request, 'inicio.html', context)
-        
-    if request.user.rol == 'admin':
-        context['total_usuarios'] = Usuario.objects.count()
-        context['total_cursos'] = Curso.objects.count()
-        context['total_inscripciones'] = InscripcionCurso.objects.count()
-        context['total_certificados'] = Certificado.objects.count()
-        
-        context['cursos_con_mas_inscritos'] = list(
-            Curso.objects.annotate(
-                num_inscripciones=models.Count('inscripciones')
-            ).order_by('-num_inscripciones')[:5]
+    context = {}
+
+    if request.user.rol == "admin":
+        dashboard = ReporteRepository.dashboard()
+        context.update(dashboard)
+        context["ultimas_inscripciones"] = dashboard["ultimas_inscripciones"][:5]
+    elif request.user.rol == "docente":
+        courses = CursoRepository.get_all_courses(teacher_id=email)
+        enrollments = [
+            enrollment
+            for course in courses
+            for enrollment in InscripcionRepository.list_by_course(course["id"])
+        ]
+        context.update(
+            {
+                "mis_cursos_count": len(courses),
+                "mis_inscripciones_count": len(enrollments),
+            }
         )
-        
-        context['ultimas_inscripciones'] = list(
-            InscripcionCurso.objects.select_related('usuario', 'curso')
-            .order_by('-fecha_asignacion')[:5]
+
+    if request.user.rol in {"colaborador", "alumno", "docente"}:
+        enrollments = InscripcionRepository.list_by_user(email)
+        certificates = CertificadoRepository.list_by_user(email)
+        upcoming = []
+        for enrollment in enrollments:
+            deadline = enrollment["curso"].get("fecha_limite")
+            if not deadline:
+                continue
+            days = (deadline - now).days
+            if 0 <= days <= 7:
+                upcoming.append(
+                    {
+                        "titulo": enrollment["curso"]["titulo"],
+                        "fecha_limite": deadline,
+                        "dias": days,
+                        "vencido": False,
+                    }
+                )
+        context.update(
+            {
+                "mis_inscripciones": enrollments[:3],
+                "mis_certificados_count": len(certificates),
+                "cursos_cercanos": upcoming,
+            }
         )
-        
-    elif request.user.rol == 'docente':
-        mis_cursos_ids = Curso.objects.filter(docente_creador=request.user).values_list('id', flat=True)
-        context['mis_cursos_count'] = len(mis_cursos_ids)
-        context['mis_inscripciones_count'] = InscripcionCurso.objects.filter(curso_id__in=mis_cursos_ids).count()
-    
-    if request.user.rol in ['colaborador', 'docente']:
-        context['mis_inscripciones'] = list(
-            InscripcionCurso.objects.filter(usuario=request.user)
-            .select_related('curso')
-            .order_by('-fecha_asignacion')[:3]
-        )
-        context['mis_certificados_count'] = Certificado.objects.filter(usuario=request.user).count()
-        
-        cursos_cercanos = []
-        for ins in InscripcionCurso.objects.filter(
-            usuario=request.user,
-            estado__in=['asignado', 'en_progreso']
-        ).select_related('curso'):
-            if ins.curso.fecha_limite:
-                dias_restantes = (ins.curso.fecha_limite - now).days
-                if 0 <= dias_restantes <= 7:
-                    cursos_cercanos.append({
-                        'titulo': ins.curso.titulo,
-                        'fecha_limite': ins.curso.fecha_limite,
-                        'dias': dias_restantes,
-                        'vencido': dias_restantes < 0
-                    })
-        context['cursos_cercanos'] = cursos_cercanos
-        
-        from usuarios.utils import verificar_recordatorios
         verificar_recordatorios(request.user)
-    
-    return render(request, 'inicio.html', context)
+
+    return render(request, "inicio.html", context)
 
 
 @login_required
 def mis_cursos(request):
-    from django.utils import timezone
-    now = timezone.now()
-    
-    if request.user.rol == 'admin':
-        cursos = Curso.objects.all().order_by('-fecha_creacion')
-        return render(request, 'usuarios/mis_cursos.html', {
-            'cursos': cursos,
-            'es_docente': True,
-            'es_admin': True,
-            'now': now
-        })
-    elif request.user.rol == 'docente':
-        cursos = Curso.objects.filter(docente_creador=request.user).order_by('-fecha_creacion')
-        return render(request, 'usuarios/mis_cursos.html', {
-            'cursos': cursos,
-            'es_docente': True,
-            'now': now
-        })
+    email = _user_email(request.user)
+    context = {"now": timezone.now()}
+    if request.user.rol == "admin":
+        context.update(
+            {
+                "cursos": CursoRepository.get_all_courses(),
+                "es_docente": True,
+                "es_admin": True,
+            }
+        )
+    elif request.user.rol == "docente":
+        context.update(
+            {
+                "cursos": CursoRepository.get_all_courses(teacher_id=email),
+                "es_docente": True,
+            }
+        )
     else:
-        inscripciones = InscripcionCurso.objects.filter(
-            usuario=request.user
-        ).select_related('curso').order_by('-fecha_asignacion')
-        return render(request, 'usuarios/mis_cursos.html', {
-            'inscripciones': inscripciones,
-            'now': now
-        })
+        context["inscripciones"] = InscripcionRepository.list_by_user(email)
+    return render(request, "usuarios/mis_cursos.html", context)
 
 
 @login_required
 def perfil(request):
-    from evaluaciones.models import IntentoEvaluacion
-    from certificados.models import Certificado
-    from cursos.models import InscripcionCurso
-    
-    total_enrolled = InscripcionCurso.objects.filter(usuario=request.user).count()
-    completed_count = InscripcionCurso.objects.filter(usuario=request.user, estado='completado').count()
-    in_progress_count = InscripcionCurso.objects.filter(usuario=request.user, estado='en_progreso').count()
-    
-    certificados_count = Certificado.objects.filter(usuario=request.user).count()
-    
-    attempts = IntentoEvaluacion.objects.filter(usuario=request.user)
-    evaluations_taken = attempts.count()
-    evaluations_passed = attempts.filter(aprobado=True).count()
-    
-    completion_rate = 0
-    if total_enrolled > 0:
-        completion_rate = int((completed_count / total_enrolled) * 100)
-    
-    intentos = attempts.select_related('evaluacion', 'evaluacion__curso').order_by('-fecha_intento')[:10]
-    
-    certificados = Certificado.objects.filter(
-        usuario=request.user
-    ).select_related('curso')
-    
-    recent_inscripciones = InscripcionCurso.objects.filter(
-        usuario=request.user
-    ).select_related('curso').order_by('-fecha_asignacion')[:5]
-    
-    context = {
-        'intentos': intentos,
-        'certificados': certificados,
-        'total_enrolled': total_enrolled,
-        'completed_count': completed_count,
-        'in_progress_count': in_progress_count,
-        'certificados_count': certificados_count,
-        'evaluations_taken': evaluations_taken,
-        'evaluations_passed': evaluations_passed,
-        'completion_rate': completion_rate,
-        'recent_inscripciones': recent_inscripciones,
-    }
-    return render(request, 'usuarios/perfil.html', context)
+    email = _user_email(request.user)
+    enrollments = InscripcionRepository.list_by_user(email)
+    attempts = EvaluacionRepository.get_intentos_por_usuario(email)
+    certificates = CertificadoRepository.list_by_user(email)
+    completed = sum(item["estado"] == "completado" for item in enrollments)
+    in_progress = sum(item["estado"] == "en_progreso" for item in enrollments)
+    total = len(enrollments)
+    return render(
+        request,
+        "usuarios/perfil.html",
+        {
+            "intentos": attempts[:10],
+            "certificados": certificates,
+            "total_enrolled": total,
+            "completed_count": completed,
+            "in_progress_count": in_progress,
+            "certificados_count": len(certificates),
+            "evaluations_taken": len(attempts),
+            "evaluations_passed": sum(item.get("aprobado", False) for item in attempts),
+            "completion_rate": int(completed * 100 / total) if total else 0,
+            "recent_inscripciones": enrollments[:5],
+        },
+    )
+
+
+class PasswordChangeRepositoryForm(forms.Form):
+    old_password = forms.CharField(widget=forms.PasswordInput, label="Contraseña actual")
+    new_password1 = forms.CharField(widget=forms.PasswordInput, label="Nueva contraseña")
+    new_password2 = forms.CharField(widget=forms.PasswordInput, label="Confirmar contraseña")
+
+    def clean(self):
+        data = super().clean()
+        if data.get("new_password1") != data.get("new_password2"):
+            raise forms.ValidationError("Las contraseñas nuevas no coinciden.")
+        return data
 
 
 @login_required
 def password_change(request):
-    if request.method == 'POST':
-        from django.contrib.auth.forms import PasswordChangeForm
-        form = PasswordChangeForm(user=request.user, data=request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Contraseña actualizada exitosamente.')
-            return redirect('usuarios:perfil')
-    else:
-        from django.contrib.auth.forms import PasswordChangeForm
-        form = PasswordChangeForm(user=request.user)
-    return render(request, 'usuarios/password_change.html', {'form': form})
+    email = _user_email(request.user)
+    user = UsuarioRepository.get_by_email(email)
+    form = PasswordChangeRepositoryForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        if not check_password(form.cleaned_data["old_password"], user.get("password_hash")):
+            form.add_error("old_password", "La contraseña actual no es correcta.")
+        else:
+            UsuarioRepository.update_user(
+                email, {"password_hash": make_password(form.cleaned_data["new_password1"])}
+            )
+            messages.success(request, "Contraseña actualizada exitosamente.")
+            return redirect("usuarios:perfil")
+    return render(request, "usuarios/password_change.html", {"form": form})
 
 
 @login_required
 @admin_required
 def usuario_list(request):
-    usuarios = Usuario.objects.select_related('cargo').order_by('-date_joined')
-    paginator = Paginator(usuarios, 20)
-    page_number = request.GET.get('page', 1)
-    usuarios_page = paginator.get_page(page_number)
-    
-    return render(request, 'usuarios/usuario_list.html', {
-        'usuarios': usuarios_page,
-        'page_obj': usuarios_page
-    })
+    users = UsuarioRepository.list_all()
+    page = Paginator(users, 20).get_page(request.GET.get("page", 1))
+    return render(request, "usuarios/usuario_list.html", {"usuarios": page, "page_obj": page})
 
 
 @login_required
 @admin_required
 def usuario_create(request):
-    from usuarios.models import AreaCargo
-    areas = AreaCargo.objects.all()
-    
-    colaborador_cargos = [
-        'Profesional de Atención Directa',
-        'Técnico de Atención Directa',
-        'Asistente de Trato Directo',
-        'Auxiliares de Servicio',
-        'Manipuladores de Alimento',
-    ]
-    admin_cargos = [
-        'Administración y Apoyo',
-        'Directivos',
-    ]
-    docente_cargos = [
-        'Docente Interno',
-        'Docente Externo',
-    ]
-    
-    areas_colaborador = areas.filter(nombre__in=colaborador_cargos)
-    areas_admin = areas.filter(nombre__in=admin_cargos)
-    areas_docente = areas.filter(nombre__in=docente_cargos)
-    
-    if request.method == 'POST':
-        form = UsuarioForm(request.POST)
-        if form.is_valid():
-            usuario = form.save()
-            messages.success(request, f'Usuario "{usuario.get_full_name()}" creado exitosamente.')
-            return redirect('usuarios:usuario_list')
-    else:
-        form = UsuarioForm()
-    
-    return render(request, 'usuarios/usuario_form.html', {
-        'form': form,
-        'areas': areas,
-        'areas_colaborador': areas_colaborador,
-        'areas_admin': areas_admin,
-        'areas_docente': areas_docente,
-        'accion': 'crear'
-    })
+    areas = AreaCargoRepository.list_all()
+    form = UsuarioForm(request.POST or None, areas=areas)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        if UsuarioRepository.get_by_email(data["email"]):
+            form.add_error("email", "Ya existe un usuario con ese correo electrónico.")
+        elif not data.get("password"):
+            form.add_error("password", "La contraseña es obligatoria al crear un usuario.")
+        else:
+            user = UsuarioRepository.create_user(
+                data["email"],
+                make_password(data["password"]),
+                rol=data["rol"],
+                rut=data["rut"],
+                first_name=data["first_name"],
+                last_name=data["last_name"],
+                cargo_id=data.get("cargo"),
+            )
+            messages.success(request, f'Usuario "{user["nombre"]}" creado exitosamente.')
+            return redirect("usuarios:usuario_list")
+    return render(
+        request,
+        "usuarios/usuario_form.html",
+        {"form": form, **_area_groups(areas), "accion": "crear"},
+    )
 
 
 @login_required
 @admin_required
 def usuario_edit(request, pk):
-    from usuarios.models import AreaCargo
-    areas = AreaCargo.objects.all()
-    
-    colaborador_cargos = [
-        'Profesional de Atención Directa',
-        'Técnico de Atención Directa',
-        'Asistente de Trato Directo',
-        'Auxiliares de Servicio',
-        'Manipuladores de Alimento',
-    ]
-    admin_cargos = [
-        'Administración y Apoyo',
-        'Directivos',
-    ]
-    docente_cargos = [
-        'Docente Interno',
-        'Docente Externo',
-    ]
-    
-    areas_colaborador = areas.filter(nombre__in=colaborador_cargos)
-    areas_admin = areas.filter(nombre__in=admin_cargos)
-    areas_docente = areas.filter(nombre__in=docente_cargos)
-    
-    usuario = get_object_or_404(Usuario, pk=pk)
-    
-    if request.method == 'POST':
-        form = UsuarioForm(request.POST, instance=usuario)
-        if form.is_valid():
-            usuario = form.save()
-            messages.success(request, f'Usuario "{usuario.get_full_name()}" actualizado.')
-            return redirect('usuarios:usuario_list')
-    else:
-        form = UsuarioForm(instance=usuario)
-    
-    return render(request, 'usuarios/usuario_form.html', {
-        'form': form,
-        'usuario': usuario,
-        'areas': areas,
-        'areas_colaborador': areas_colaborador,
-        'areas_admin': areas_admin,
-        'areas_docente': areas_docente,
-        'accion': 'editar'
-    })
+    user = _required(UsuarioRepository.get_by_email(pk), "Usuario no encontrado.")
+    areas = AreaCargoRepository.list_all()
+    initial = {**user, "cargo": user.get("cargo_id", "")}
+    form = UsuarioForm(request.POST or None, instance=initial, areas=areas)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        changes = {
+            "username": data["username"],
+            "first_name": data["first_name"],
+            "last_name": data["last_name"],
+            "rut": data["rut"],
+            "rol": data["rol"],
+            "cargo_id": data.get("cargo", ""),
+        }
+        if data.get("password"):
+            changes["password_hash"] = make_password(data["password"])
+        UsuarioRepository.update_user(pk, changes)
+        messages.success(request, "Usuario actualizado.")
+        return redirect("usuarios:usuario_list")
+    return render(
+        request,
+        "usuarios/usuario_form.html",
+        {"form": form, "usuario": user, **_area_groups(areas), "accion": "editar"},
+    )
 
 
 @login_required
 @admin_required
 def usuario_delete(request, pk):
-    usuario = get_object_or_404(Usuario, pk=pk)
-    
-    if request.method == 'POST':
-        if usuario == request.user:
-            messages.error(request, 'No puedes eliminar tu propia cuenta.')
-            return redirect('usuarios:usuario_list')
-        
-        nombre = usuario.get_full_name() or usuario.username
-        usuario.delete()
-        messages.success(request, f'Usuario "{nombre}" eliminado.')
-        return redirect('usuarios:usuario_list')
-    
-    return render(request, 'usuarios/usuario_confirm_delete.html', {'usuario': usuario})
+    user = _required(UsuarioRepository.get_by_email(pk), "Usuario no encontrado.")
+    if request.method == "POST":
+        if pk == _user_email(request.user):
+            messages.error(request, "No puedes eliminar tu propia cuenta.")
+        else:
+            UsuarioRepository.delete_user(pk)
+            messages.success(request, f'Usuario "{user["nombre"]}" eliminado.')
+        return redirect("usuarios:usuario_list")
+    return render(request, "usuarios/usuario_confirm_delete.html", {"usuario": user})
 
 
 @login_required
 @admin_required
 def inscribir_curso(request, curso_id):
-    curso = get_object_or_404(Curso, pk=curso_id)
-    
-    if request.method == 'POST':
-        usuario_id = request.POST.get('usuario_id')
-        
-        try:
-            usuario = Usuario.objects.get(pk=usuario_id)
-            
-            if InscripcionCurso.objects.filter(usuario=usuario, curso=curso).exists():
-                messages.error(request, f'El usuario {usuario.get_full_name()} ya está inscrito en este curso.')
-            else:
-                inscripcion = InscripcionCurso.objects.create(
-                    usuario=usuario,
-                    curso=curso,
-                    estado='asignado'
-                )
-                from usuarios.utils import notificar_inscripcion
-                notificar_inscripcion(inscripcion)
-                messages.success(request, f'{usuario.get_full_name()} ha sido inscrito en {curso.titulo}')
-                return redirect('cursos:curso_detail', pk=curso.id)
-        except Usuario.DoesNotExist:
-            messages.error(request, 'Usuario no encontrado.')
-    
-    usuarios_inscritos = InscripcionCurso.objects.filter(curso=curso).values_list('usuario_id', flat=True)
-    usuarios_disponibles = Usuario.objects.exclude(id__in=usuarios_inscritos).filter(rol='colaborador')
-    
-    return render(request, 'usuarios/inscribir_curso.html', {
-        'curso': curso,
-        'usuarios': usuarios_disponibles
-    })
+    course = _required(CursoRepository.get_course(curso_id), "Curso no encontrado.")
+    if request.method == "POST":
+        user_email = request.POST.get("usuario_id")
+        user = UsuarioRepository.get_by_email(user_email)
+        if not user:
+            messages.error(request, "Usuario no encontrado.")
+        elif InscripcionRepository.get(user_email, curso_id):
+            messages.error(request, "El usuario ya está inscrito en este curso.")
+        else:
+            enrollment = InscripcionRepository.save(user_email, curso_id)
+            notificar_inscripcion(enrollment)
+            messages.success(request, f'{user["nombre"]} ha sido inscrito en {course["titulo"]}.')
+            return redirect("cursos:curso_detail", pk=curso_id)
+    enrolled = {item["usuario_id"] for item in InscripcionRepository.list_by_course(curso_id)}
+    available = [
+        user for user in UsuarioRepository.list_all(role="colaborador") if user["email"] not in enrolled
+    ]
+    return render(request, "usuarios/inscribir_curso.html", {"curso": course, "usuarios": available})
 
 
 @login_required
 @admin_required
 def inscribir_curso_bulk(request, curso_id):
-    curso = get_object_or_404(Curso, pk=curso_id)
-    
-    query = request.GET.get('q', '')
-    
-    if request.method == 'POST':
-        usuario_ids = request.POST.getlist('usuarios')
-        if not usuario_ids:
-            messages.error(request, 'Selecciona al menos un usuario.')
-            return redirect('usuarios:inscribir_curso_bulk', curso_id=curso_id)
-        
-        creados = 0
-        ya_inscritos = 0
-        for usuario_id in usuario_ids:
-            usuario = get_object_or_404(Usuario, pk=usuario_id)
-            if InscripcionCurso.objects.filter(usuario=usuario, curso=curso).exists():
-                ya_inscritos += 1
-            else:
-                inscripcion = InscripcionCurso.objects.create(
-                    usuario=usuario,
-                    curso=curso,
-                    estado='asignado'
-                )
-                from usuarios.utils import notificar_inscripcion
-                notificar_inscripcion(inscripcion)
-                creados += 1
-        
-        if creados > 0:
-            suffix = '' if creados == 1 else 's'
-            messages.success(request, f'{creados} usuario{suffix} inscrito{suffix} exitosamente.')
-        if ya_inscritos > 0:
-            suffix = '' if ya_inscritos == 1 else 's'
-            messages.warning(request, f'{ya_inscritos} ya estaba{suffix} inscribirse{suffix}.')
-        
-        return redirect('cursos:curso_detail', pk=curso_id)
-    
-    usuarios_inscritos = InscripcionCurso.objects.filter(curso=curso).values_list('usuario_id', flat=True)
-    usuarios_disponibles = Usuario.objects.exclude(id__in=usuarios_inscritos).filter(rol='colaborador')
-    
+    course = _required(CursoRepository.get_course(curso_id), "Curso no encontrado.")
+    enrolled = {item["usuario_id"] for item in InscripcionRepository.list_by_course(curso_id)}
+    if request.method == "POST":
+        selected = request.POST.getlist("usuarios")
+        if not selected:
+            messages.error(request, "Selecciona al menos un usuario.")
+        else:
+            created = 0
+            for email in selected:
+                if email not in enrolled and UsuarioRepository.get_by_email(email):
+                    enrollment = InscripcionRepository.save(email, curso_id)
+                    notificar_inscripcion(enrollment)
+                    created += 1
+            messages.success(request, f"{created} usuario(s) inscrito(s) exitosamente.")
+            return redirect("cursos:curso_detail", pk=curso_id)
+    query = request.GET.get("q", "").lower()
+    available = [
+        user for user in UsuarioRepository.list_all(role="colaborador") if user["email"] not in enrolled
+    ]
     if query:
-        usuarios_disponibles = usuarios_disponibles.filter(
-            username__icontains=query
-        ) | usuarios_disponibles.filter(
-            first_name__icontains=query
-        ) | usuarios_disponibles.filter(
-            last_name__icontains=query
-        ) | usuarios_disponibles.filter(
-            rut__icontains=query
-        )
-    
-    usuarios_disponibles = list(usuarios_disponibles.select_related('cargo'))
-    
-    return render(request, 'usuarios/inscribir_curso_bulk.html', {
-        'curso': curso,
-        'usuarios': usuarios_disponibles,
-        'query': query
-    })
+        available = [
+            user
+            for user in available
+            if query in " ".join(
+                [user.get("username", ""), user.get("nombre", ""), user.get("rut", "")]
+            ).lower()
+        ]
+    return render(
+        request,
+        "usuarios/inscribir_curso_bulk.html",
+        {"curso": course, "usuarios": available, "query": query},
+    )

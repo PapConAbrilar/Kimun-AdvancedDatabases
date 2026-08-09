@@ -94,7 +94,7 @@
                     </div>
                     <div class="flex items-center gap-2">
                         {% if material.archivo %}
-                        <a href="{{ material.archivo.url }}" target="_blank" class="btn-outline px-3 py-1.5 rounded-lg text-sm">
+                        <a href="{{ material.archivo_url }}" target="_blank" class="btn-outline px-3 py-1.5 rounded-lg text-sm">
                             <i class="bi bi-download me-1"></i>Descargar
                         </a>
                         {% elif material.url %}
@@ -161,10 +161,10 @@
                 </div>
                 {% endfor %}
             </div>
-            {% if clases.count > 5 %}
+            {% if clases|length > 5 %}
             <div class="mt-4 text-center">
                 <a href="{% url 'cursos:clase_list' curso.id %}" class="text-sm" style="color: var(--color-primary);">
-                    Ver todas las {{ clases.count }} clases <i class="bi bi-arrow-right ms-1"></i>
+                    Ver todas las {{ clases|length }} clases <i class="bi bi-arrow-right ms-1"></i>
                 </a>
             </div>
             {% endif %}
@@ -298,7 +298,7 @@
                 </div>
             </div>
             {% endif %}
-            {% if curso.evaluaciones.exists %}
+            {% if curso.tiene_evaluaciones %}
             <div class="mt-6">
                 <a href="{% url 'evaluaciones:evaluacion_list' curso_pk=curso.id %}" class="btn-primary w-full text-center px-4 py-2 rounded-xl text-sm flex items-center justify-center gap-2">
                     <i class="bi bi-pencil-square"></i> Ir a Evaluaciones

@@ -142,10 +142,10 @@ resource "aws_instance" "kimun_web" {
 # ==========================================
 
 resource "aws_dynamodb_table" "kimun_data" {
-  name             = var.dynamodb_table_name
-  billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "PK"
-  range_key        = "SK"
+  name         = var.dynamodb_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "PK"
+  range_key    = "SK"
 
   attribute {
     name = "PK"
@@ -165,10 +165,10 @@ resource "aws_dynamodb_table" "kimun_data" {
   }
 
   global_secondary_index {
-    name               = "GSI1"
-    hash_key           = "GSI1PK"
-    range_key          = "GSI1SK"
-    projection_type    = "ALL"
+    name            = "GSI1"
+    hash_key        = "GSI1PK"
+    range_key       = "GSI1SK"
+    projection_type = "ALL"
   }
 
   tags = {
@@ -178,11 +178,11 @@ resource "aws_dynamodb_table" "kimun_data" {
 }
 
 resource "aws_dynamodb_table" "kimun_data_replica" {
-  provider         = aws.replica
-  name             = var.dynamodb_table_name
-  billing_mode     = "PAY_PER_REQUEST"
-  hash_key         = "PK"
-  range_key        = "SK"
+  provider     = aws.replica
+  name         = var.dynamodb_table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "PK"
+  range_key    = "SK"
 
   attribute {
     name = "PK"
@@ -202,14 +202,14 @@ resource "aws_dynamodb_table" "kimun_data_replica" {
   }
 
   global_secondary_index {
-    name               = "GSI1"
-    hash_key           = "GSI1PK"
-    range_key          = "GSI1SK"
-    projection_type    = "ALL"
+    name            = "GSI1"
+    hash_key        = "GSI1PK"
+    range_key       = "GSI1SK"
+    projection_type = "ALL"
   }
 
   tags = {
     Environment = "Taller-Academico"
-    Region      = "sa-east-1"
+    Region      = "us-west-2"
   }
 }

@@ -1,490 +1,427 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import HttpResponseForbidden
-from django.core.paginator import Paginator
-from django.db import IntegrityError
-from django.db.models import Max
+from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
+from django.http import Http404, HttpResponseForbidden
+from django.shortcuts import redirect, render
 from django.utils import timezone
-from .models import Curso, Material, InscripcionCurso, Categoria, Clase, ClaseCompletado
-from .forms import CursoForm, MaterialForm, CategoriaForm, ClaseForm
-from usuarios.decorators import admin_required, docente_or_admin_required, course_owner_or_admin
+
+from calendario.repository import CalendarioRepository
+from cursos.forms import CategoriaForm, ClaseForm, CursoForm, MaterialForm
+from cursos.repository import (
+    CategoriaRepository,
+    ClaseRepository,
+    CursoRepository,
+    InscripcionRepository,
+    MaterialRepository,
+    ProgresoClaseRepository,
+)
+from evaluaciones.repository import EvaluacionRepository
+from tareas.repository import TareaRepository
+from usuarios.decorators import docente_or_admin_required
+from usuarios.repository import UsuarioRepository
+
+
+def _email(user):
+    return user.email or user.username
+
+
+def _required(value, message):
+    if not value:
+        raise Http404(message)
+    return value
+
+
+def _can_manage(user, course):
+    return user.rol == "admin" or (
+        user.rol == "docente" and course.get("docente_creador_id") == _email(user)
+    )
 
 
 @login_required
 def curso_list(request):
-    if request.user.rol == 'colaborador':
-        return redirect('usuarios:mis_cursos')
-    query = request.GET.get('q', '')
-    estado_filter = request.GET.get('estado', '')
-    categoria_filter = request.GET.get('categoria', '')
-    
-    if request.user.rol in ['admin', 'docente']:
-        cursos = Curso.objects.select_related('docente_creador', 'categoria')
-    else:
-        cursos = Curso.objects.filter(estado='publicado').select_related('categoria')
-    
-    if query:
-        cursos = cursos.filter(titulo__icontains=query)
-    
-    if estado_filter:
-        cursos = cursos.filter(estado=estado_filter)
-    
-    if categoria_filter:
-        cursos = cursos.filter(categoria_id=categoria_filter)
-    
-    cursos = cursos.order_by('-fecha_creacion')
-    
-    paginator = Paginator(cursos, 15)
-    page_number = request.GET.get('page', 1)
-    cursos_page = paginator.get_page(page_number)
-    
-    return render(request, 'cursos/curso_list.html', {
-        'cursos': cursos_page,
-        'page_obj': cursos_page,
-        'is_docente': request.user.rol in ['admin', 'docente'],
-        'query': query,
-        'estado_filter': estado_filter,
-        'categoria_filter': categoria_filter,
-        'categorias': Categoria.objects.all(),
-        'now': timezone.now()
-    })
+    category_id = request.GET.get("categoria") or None
+    search = request.GET.get("q", "").strip().lower()
+    state = None if request.user.rol in {"admin", "docente"} else "publicado"
+    courses = CursoRepository.get_all_courses(state=state, category_id=category_id)
+    if search:
+        courses = [
+            course
+            for course in courses
+            if search in f'{course.get("titulo", "")} {course.get("descripcion", "")}'.lower()
+        ]
+    return render(
+        request,
+        "cursos/curso_list.html",
+        {
+            "cursos": courses,
+            "categorias": CategoriaRepository.list_all(),
+            "categoria_filter": category_id or "",
+            "query": search,
+        },
+    )
 
 
 @login_required
 @docente_or_admin_required
 def curso_create(request):
-    if request.method == 'POST':
-        form = CursoForm(request.POST, user=request.user)
-        if form.is_valid():
-            curso = form.save(commit=False)
-            if request.user.rol == 'docente':
-                curso.docente_creador = request.user
-            else:
-                curso.docente_creador = form.cleaned_data['docente_creador']
-            curso.save()
-            messages.success(request, f'Curso "{curso.titulo}" creado exitosamente.')
-            return redirect('cursos:curso_detail', pk=curso.id)
-    else:
-        form = CursoForm(initial={'estado': 'borrador'}, user=request.user)
-
-    return render(request, 'cursos/curso_form.html', {
-        'accion': 'crear',
-        'curso': None,
-        'form': form,
-        'categorias': Categoria.objects.all()
-    })
-
-
-@login_required
-@course_owner_or_admin
-def curso_edit(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    if request.method == 'POST':
-        form = CursoForm(request.POST, instance=curso)
-        if form.is_valid():
-            curso = form.save()
-            messages.success(request, f'Curso "{curso.titulo}" actualizado.')
-            return redirect('cursos:curso_detail', pk=curso.id)
-    else:
-        form = CursoForm(instance=curso)
-    
-    return render(request, 'cursos/curso_form.html', {
-        'accion': 'editar',
-        'curso': curso,
-        'form': form,
-        'categorias': Categoria.objects.all()
-    })
+    categories = CategoriaRepository.list_all()
+    teachers = UsuarioRepository.list_all(role="docente")
+    form = CursoForm(
+        request.POST or None,
+        categorias=categories,
+        docentes=teachers,
+        user=request.user,
+    )
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        teacher = data.get("docente_creador") or _email(request.user)
+        course = CursoRepository.create_course(
+            {
+                "titulo": data["titulo"],
+                "descripcion": data["descripcion"],
+                "categoria_id": data.get("categoria", ""),
+                "estado": data["estado"],
+                "docente_creador_id": teacher,
+                "fecha_limite": data.get("fecha_limite"),
+            }
+        )
+        CalendarioRepository.sync_course(course)
+        messages.success(request, "Curso creado exitosamente.")
+        return redirect("cursos:curso_detail", pk=course["id"])
+    return render(request, "cursos/curso_form.html", {"form": form, "accion": "crear"})
 
 
 @login_required
 def curso_detail(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    # Si es borrador, solo lo ve el creador, admin, o usuarios inscritos
-    if curso.estado == 'borrador':
-        is_enrolled = InscripcionCurso.objects.filter(usuario=request.user, curso=curso).exists()
-        if not is_enrolled:
-            if request.user.rol not in ['admin', 'docente']:
-                return HttpResponseForbidden('Este curso no está disponible.')
-            if request.user.rol == 'docente' and curso.docente_creador != request.user:
-                return HttpResponseForbidden('Este curso no está disponible.')
-    
-    materiales = curso.materiales.all()
-    clases = curso.clases.all().order_by('orden')
-    
-    clases_con_estado = []
-    clases_completadas_count = 0
-    for clase in clases:
-        completado = None
-        if request.user.rol == 'colaborador':
-            completado = ClaseCompletado.objects.filter(usuario=request.user, clase=clase).exists()
-            if completado:
-                clases_completadas_count += 1
-        clases_con_estado.append({
-            'clase': clase,
-            'completado': completado
-        })
-    
-    clases_progress = 0
-    if clases.count() > 0:
-        clases_progress = int((clases_completadas_count / clases.count()) * 100)
-    
-    # Verificar si el usuario está InscripcionCurso
-    inscripcion = None
-    course_progress = None
-    if request.user.rol == 'colaborador':
-        inscripcion = InscripcionCurso.objects.filter(usuario=request.user, curso=curso).first()
-        
-        total_evals = curso.evaluaciones.count()
-        if total_evals > 0:
-            from evaluaciones.models import IntentoEvaluacion
-            aprobadas = IntentoEvaluacion.objects.filter(
-                evaluacion__curso=curso,
-                usuario=request.user,
-                aprobado=True
-            ).values('evaluacion').distinct().count()
-            course_progress = int((aprobadas / total_evals) * 100)
-        else:
-            course_progress = 0
-    
-    puede_editar = request.user.rol == 'admin' or (
-        request.user.rol == 'docente' and curso.docente_creador == request.user
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    email = _email(request.user)
+    enrollment = InscripcionRepository.get(email, pk)
+    can_manage = _can_manage(request.user, course)
+    if course.get("estado") != "publicado" and not can_manage:
+        return HttpResponseForbidden("No tienes permisos para ver este curso.")
+
+    classes = ClaseRepository.list_by_course(pk)
+    progress = {item["clase_id"] for item in ProgresoClaseRepository.list_by_user(email)}
+    class_items = [{"clase": item, "completado": item["id"] in progress} for item in classes]
+    completed_classes = sum(item["completado"] for item in class_items)
+    class_progress = int(completed_classes * 100 / len(classes)) if classes else 0
+    materials = MaterialRepository.list_by_course(pk)
+    for material in materials:
+        if material.get("archivo"):
+            try:
+                material["archivo_url"] = default_storage.url(material["archivo"])
+            except Exception:
+                material["archivo_url"] = ""
+    evaluations = EvaluacionRepository.list_by_course(pk)
+    tasks = TareaRepository.list_by_course(pk)
+    course["tiene_evaluaciones"] = bool(evaluations)
+    approved_evaluations = 0
+    if enrollment:
+        approved_evaluations = sum(
+            any(
+                attempt.get("aprobado")
+                for attempt in EvaluacionRepository.get_intentos_por_usuario(
+                    email, evaluation["id"]
+                )
+            )
+            for evaluation in evaluations
+        )
+    course_progress = (
+        int(approved_evaluations * 100 / len(evaluations)) if evaluations else 0
     )
-    
-    from django.utils import timezone
-    
-    return render(request, 'cursos/curso_detail.html', {
-        'curso': curso,
-        'materiales': materiales,
-        'clases': clases,
-        'clases_con_estado': clases_con_estado,
-        'clases_progress': clases_progress,
-        'inscripcion': inscripcion,
-        'puede_editar': puede_editar,
-        'course_progress': course_progress,
-        'now': timezone.now()
-    })
+    return render(
+        request,
+        "cursos/curso_detail.html",
+        {
+            "curso": course,
+            "materiales": materials,
+            "clases": classes,
+            "clases_con_estado": class_items,
+            "clases_progress": class_progress,
+            "tareas": tasks[:5],
+            "evaluaciones": evaluations,
+            "is_enrolled": bool(enrollment),
+            "inscripcion": enrollment,
+            "puede_gestionar": can_manage,
+            "puede_editar": can_manage,
+            "course_progress": course_progress,
+            "now": timezone.now(),
+        },
+    )
 
 
 @login_required
-@course_owner_or_admin
+@docente_or_admin_required
+def curso_edit(request, pk):
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para editar este curso.")
+    categories = CategoriaRepository.list_all()
+    teachers = UsuarioRepository.list_all(role="docente")
+    initial = {
+        **course,
+        "categoria": course.get("categoria_id", ""),
+        "docente_creador": course.get("docente_creador_id", ""),
+    }
+    form = CursoForm(
+        request.POST or None,
+        instance=initial,
+        categorias=categories,
+        docentes=teachers,
+        user=request.user,
+    )
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        updated_course = CursoRepository.update_course(
+            pk,
+            {
+                "titulo": data["titulo"],
+                "descripcion": data["descripcion"],
+                "categoria_id": data.get("categoria", ""),
+                "estado": data["estado"],
+                "docente_creador_id": data.get("docente_creador")
+                or course.get("docente_creador_id"),
+                "fecha_limite": data.get("fecha_limite"),
+            },
+        )
+        CalendarioRepository.sync_course(updated_course)
+        messages.success(request, "Curso actualizado.")
+        return redirect("cursos:curso_detail", pk=pk)
+    return render(
+        request,
+        "cursos/curso_form.html",
+        {"form": form, "curso": course, "accion": "editar"},
+    )
+
+
+@login_required
+@docente_or_admin_required
 def curso_delete(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    if request.method == 'POST':
-        curso.delete()
-        messages.success(request, 'Curso eliminado exitosamente.')
-        return redirect('cursos:curso_list')
-    
-    messages.error(request, 'Método no permitido.')
-    return redirect('cursos:curso_detail', pk=pk)
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para eliminar este curso.")
+    if request.method == "POST":
+        CursoRepository.delete_course(pk)
+        CalendarioRepository.delete_by_origin(f"curso-inicio-{pk}")
+        CalendarioRepository.delete_by_origin(f"curso-fin-{pk}")
+        messages.success(request, "Curso eliminado.")
+        return redirect("cursos:curso_list")
+    return render(request, "cursos/curso_confirm_delete.html", {"curso": course})
 
 
 @login_required
-@course_owner_or_admin
+@docente_or_admin_required
 def material_create(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    if request.method == 'POST':
-        form = MaterialForm(request.POST, request.FILES)
-        if form.is_valid():
-            material = form.save(commit=False)
-            material.curso = curso
-            material.save()
-            messages.success(request, f'Material "{material.titulo}" agregado.')
-            return redirect('cursos:curso_detail', pk=curso.id)
-    else:
-        form = MaterialForm(initial={'tipo': 'pdf'})
-    
-    return render(request, 'cursos/material_form.html', {
-        'curso': curso,
-        'form': form,
-        'accion': 'crear'
-    })
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para administrar materiales.")
+    form = MaterialForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        path = ""
+        if data.get("archivo"):
+            path = default_storage.save(
+                f'materiales/{data["archivo"].name}', data["archivo"]
+            )
+        MaterialRepository.save_material(
+            {
+                "curso_id": str(pk),
+                "titulo": data["titulo"],
+                "tipo": data["tipo"],
+                "archivo": path,
+                "url": data.get("url", ""),
+            }
+        )
+        messages.success(request, "Material agregado.")
+        return redirect("cursos:curso_detail", pk=pk)
+    return render(request, "cursos/material_form.html", {"form": form, "curso": course})
 
 
 @login_required
 @docente_or_admin_required
 def material_delete(request, pk):
-    material = get_object_or_404(Material, pk=pk)
-    curso = material.curso
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes eliminar este material.')
-    
-    if request.method == 'POST':
-        material.delete()
-        messages.success(request, 'Material eliminado.')
-        return redirect('cursos:curso_detail', pk=curso.id)
-    
-    messages.error(request, 'Método no permitido.')
-    return redirect('cursos:curso_detail', pk=curso.id)
+    material = _required(MaterialRepository.get(pk), "Material no encontrado.")
+    course = _required(CursoRepository.get_course(material["curso_id"]), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para eliminar este material.")
+    if request.method == "POST":
+        if material.get("archivo"):
+            default_storage.delete(material["archivo"])
+        MaterialRepository.delete(pk)
+        messages.success(request, "Material eliminado.")
+    return redirect("cursos:curso_detail", pk=course["id"])
 
 
 @login_required
-@admin_required
 def categoria_list(request):
-    categorias = Categoria.objects.all()
-    return render(request, 'cursos/categoria_list.html', {'categorias': categorias})
+    return render(
+        request,
+        "cursos/categoria_list.html",
+        {"categorias": CategoriaRepository.list_all()},
+    )
 
 
 @login_required
-@admin_required
+@docente_or_admin_required
 def categoria_create(request):
-    if request.method == 'POST':
-        form = CategoriaForm(request.POST)
-        if form.is_valid():
-            categoria = form.save()
-            messages.success(request, f'Categoría "{categoria.nombre}" creada.')
-            return redirect('cursos:categoria_list')
-    else:
-        form = CategoriaForm(initial={'color': '#6366f1'})
-    
-    return render(request, 'cursos/categoria_form.html', {'accion': 'crear', 'form': form})
+    form = CategoriaForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        CategoriaRepository.save(form.cleaned_data)
+        messages.success(request, "Categoría creada.")
+        return redirect("cursos:categoria_list")
+    return render(request, "cursos/categoria_form.html", {"form": form, "accion": "crear"})
 
 
 @login_required
-@admin_required
+@docente_or_admin_required
 def categoria_edit(request, pk):
-    categoria = get_object_or_404(Categoria, pk=pk)
-    
-    if request.method == 'POST':
-        form = CategoriaForm(request.POST, instance=categoria)
-        if form.is_valid():
-            categoria = form.save()
-            messages.success(request, f'Categoría "{categoria.nombre}" actualizada.')
-            return redirect('cursos:categoria_list')
-    else:
-        form = CategoriaForm(instance=categoria)
-    
-    return render(request, 'cursos/categoria_form.html', {
-        'accion': 'editar',
-        'categoria': categoria,
-        'form': form
-    })
+    category = _required(CategoriaRepository.get(pk), "Categoría no encontrada.")
+    form = CategoriaForm(request.POST or None, instance=category)
+    if request.method == "POST" and form.is_valid():
+        CategoriaRepository.save(form.cleaned_data, pk)
+        messages.success(request, "Categoría actualizada.")
+        return redirect("cursos:categoria_list")
+    return render(
+        request,
+        "cursos/categoria_form.html",
+        {"form": form, "categoria": category, "accion": "editar"},
+    )
 
 
 @login_required
-@admin_required
+@docente_or_admin_required
 def categoria_delete(request, pk):
-    categoria = get_object_or_404(Categoria, pk=pk)
-    
-    if request.method == 'POST':
-        nombre = categoria.nombre
-        categoria.delete()
-        messages.success(request, f'Categoría "{nombre}" eliminada.')
-        return redirect('cursos:categoria_list')
-    
-    return render(request, 'cursos/categoria_confirm_delete.html', {'categoria': categoria})
+    category = _required(CategoriaRepository.get(pk), "Categoría no encontrada.")
+    category["cursos_count"] = sum(
+        course.get("categoria_id") == str(pk)
+        for course in CursoRepository.get_all_courses(enrich=False)
+    )
+    if request.method == "POST":
+        if category["cursos_count"]:
+            messages.error(request, "No se puede eliminar una categoría con cursos asociados.")
+        else:
+            CategoriaRepository.delete(pk)
+            messages.success(request, "Categoría eliminada.")
+        return redirect("cursos:categoria_list")
+    return render(
+        request, "cursos/categoria_confirm_delete.html", {"categoria": category}
+    )
 
-
-# Clase (Lección) Views
 
 @login_required
 def clase_list(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    if curso.estado == 'borrador':
-        is_enrolled = InscripcionCurso.objects.filter(usuario=request.user, curso=curso).exists()
-        if not is_enrolled:
-            if request.user.rol not in ['admin', 'docente']:
-                return HttpResponseForbidden('Este curso no está disponible.')
-            if request.user.rol == 'docente' and curso.docente_creador != request.user:
-                return HttpResponseForbidden('Este curso no está disponible.')
-    
-    if request.user.rol == 'colaborador':
-        if not InscripcionCurso.objects.filter(usuario=request.user, curso=curso).exists():
-            return HttpResponseForbidden('Debes estar inscrito en este curso para ver las clases.')
-    
-    clases = curso.clases.all().order_by('orden')
-    
-    puede_editar = request.user.rol == 'admin' or (
-        request.user.rol == 'docente' and curso.docente_creador == request.user
-    )
-    
-    clases_con_estado = []
-    for clase in clases:
-        completado = None
-        if request.user.rol == 'colaborador':
-            completado = ClaseCompletado.objects.filter(usuario=request.user, clase=clase).exists()
-        clases_con_estado.append({
-            'clase': clase,
-            'completado': completado
-        })
-    
-    return render(request, 'cursos/clase_list.html', {
-        'curso': curso,
-        'clases_con_estado': clases_con_estado,
-        'puede_editar': puede_editar
-    })
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    email = _email(request.user)
+    progress = {item["clase_id"] for item in ProgresoClaseRepository.list_by_user(email)}
+    items = [
+        {"clase": class_item, "completado": class_item["id"] in progress}
+        for class_item in ClaseRepository.list_by_course(pk)
+    ]
+    return render(request, "cursos/clase_list.html", {"curso": course, "clases": items})
 
 
 @login_required
-@course_owner_or_admin
+@docente_or_admin_required
 def clase_create(request, pk):
-    curso = get_object_or_404(Curso, pk=pk)
-    
-    if request.method == 'POST':
-        form = ClaseForm(request.POST, instance=Clase(curso=curso))
-        if form.is_valid():
-            try:
-                clase = form.save(commit=False)
-                clase.curso = curso
-                clase.save()
-                messages.success(request, f'Clase "{clase.titulo}" creada.')
-                return redirect('cursos:clase_list', pk=curso.id)
-            except IntegrityError:
-                form.add_error('orden', 'Ya existe una clase con ese orden en el curso.')
-    else:
-        max_orden = curso.clases.aggregate(max_orden=Max('orden'))['max_orden'] or 0
-        initial_orden = max_orden + 1
-        form = ClaseForm(initial={'orden': initial_orden})
-    
-    return render(request, 'cursos/clase_form.html', {
-        'curso': curso,
-        'form': form,
-        'accion': 'crear',
-        'proximo_orden': curso.clases.count() + 1
-    })
+    course = _required(CursoRepository.get_course(pk), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para crear clases.")
+    classes = ClaseRepository.list_by_course(pk)
+    form = ClaseForm(
+        request.POST or None,
+        clases=classes,
+        initial={"orden": len(classes) + 1},
+    )
+    if request.method == "POST" and form.is_valid():
+        ClaseRepository.save_class({**form.cleaned_data, "curso_id": str(pk)})
+        messages.success(request, "Clase creada.")
+        return redirect("cursos:clase_list", pk=pk)
+    return render(request, "cursos/clase_form.html", {"form": form, "curso": course})
 
 
 @login_required
 def clase_detail(request, pk):
-    clase = get_object_or_404(Clase, pk=pk)
-    curso = clase.curso
-    
-    if curso.estado == 'borrador':
-        is_enrolled = InscripcionCurso.objects.filter(usuario=request.user, curso=curso).exists()
-        if not is_enrolled:
-            if request.user.rol not in ['admin', 'docente']:
-                return HttpResponseForbidden('Este curso no está disponible.')
-            if request.user.rol == 'docente' and curso.docente_creador != request.user:
-                return HttpResponseForbidden('Este curso no está disponible.')
-    
-    if request.user.rol == 'colaborador':
-        if not InscripcionCurso.objects.filter(usuario=request.user, curso=curso).exists():
-            return HttpResponseForbidden('Debes estar inscrito en este curso para ver las clases.')
-    
-    puede_editar = request.user.rol == 'admin' or (
-        request.user.rol == 'docente' and curso.docente_creador == request.user
+    class_item = _required(ClaseRepository.get(pk), "Clase no encontrada.")
+    course = _required(CursoRepository.get_course(class_item["curso_id"]), "Curso no encontrado.")
+    email = _email(request.user)
+    enrollment = InscripcionRepository.get(email, course["id"])
+    if not _can_manage(request.user, course) and not enrollment:
+        return HttpResponseForbidden("Debes estar inscrito en este curso.")
+    previous, following = ClaseRepository.previous_and_next(class_item)
+    completed = bool(ProgresoClaseRepository.get(email, pk))
+    previous_completed = not previous or bool(ProgresoClaseRepository.get(email, previous["id"]))
+    return render(
+        request,
+        "cursos/clase_detail.html",
+        {
+            "clase": class_item,
+            "curso": course,
+            "clase_anterior": previous,
+            "siguiente_clase": following,
+            "completado": completed,
+            "puede_completar": previous_completed,
+        },
     )
-    
-    completado = None
-    tiene_acceso = True
-    clase_anterior = clase.get_clase_anterior()
-    siguiente_clase = clase.get_siguiente_clase()
-    
-    if request.user.rol == 'colaborador':
-        completado = ClaseCompletado.objects.filter(usuario=request.user, clase=clase).exists()
-        
-        if clase_anterior and not completado:
-            tiene_clase_anterior_completada = ClaseCompletado.objects.filter(
-                usuario=request.user,
-                clase=clase_anterior
-            ).exists()
-            if not tiene_clase_anterior_completada:
-                tiene_acceso = False
-    
-    return render(request, 'cursos/clase_detail.html', {
-        'clase': clase,
-        'curso': curso,
-        'completado': completado,
-        'tiene_acceso': tiene_acceso,
-        'puede_editar': puede_editar,
-        'clase_anterior': clase_anterior,
-        'siguiente_clase': siguiente_clase
-    })
 
 
 @login_required
 @docente_or_admin_required
 def clase_edit(request, pk):
-    clase = get_object_or_404(Clase, pk=pk)
-    curso = clase.curso
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes editar esta clase.')
-    
-    if request.method == 'POST':
-        form = ClaseForm(request.POST, instance=clase)
-        if form.is_valid():
-            try:
-                form.save()
-                messages.success(request, f'Clase "{clase.titulo}" actualizada.')
-                return redirect('cursos:clase_detail', pk=clase.id)
-            except IntegrityError:
-                form.add_error('orden', 'Ya existe una clase con ese orden en el curso.')
-    else:
-        form = ClaseForm(instance=clase)
-    
-    return render(request, 'cursos/clase_form.html', {
-        'curso': curso,
-        'clase': clase,
-        'form': form,
-        'accion': 'editar'
-    })
+    class_item = _required(ClaseRepository.get(pk), "Clase no encontrada.")
+    course = _required(CursoRepository.get_course(class_item["curso_id"]), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para editar esta clase.")
+    form = ClaseForm(
+        request.POST or None,
+        instance=class_item,
+        clases=ClaseRepository.list_by_course(course["id"]),
+    )
+    if request.method == "POST" and form.is_valid():
+        ClaseRepository.save_class(
+            {**form.cleaned_data, "curso_id": course["id"]}, pk
+        )
+        messages.success(request, "Clase actualizada.")
+        return redirect("cursos:clase_detail", pk=pk)
+    return render(
+        request,
+        "cursos/clase_form.html",
+        {"form": form, "curso": course, "clase": class_item},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def clase_delete(request, pk):
-    clase = get_object_or_404(Clase, pk=pk)
-    curso = clase.curso
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes eliminar esta clase.')
-    
-    if request.method == 'POST':
-        titulo = clase.titulo
-        clase.delete()
-        messages.success(request, f'Clase "{titulo}" eliminada.')
-        return redirect('cursos:clase_list', pk=curso.id)
-    
-    return render(request, 'cursos/clase_confirm_delete.html', {
-        'clase': clase,
-        'curso': curso
-    })
+    class_item = _required(ClaseRepository.get(pk), "Clase no encontrada.")
+    course = _required(CursoRepository.get_course(class_item["curso_id"]), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No tienes permisos para eliminar esta clase.")
+    if request.method == "POST":
+        ClaseRepository.delete(pk)
+        messages.success(request, "Clase eliminada.")
+        return redirect("cursos:clase_list", pk=course["id"])
+    return render(
+        request,
+        "cursos/clase_confirm_delete.html",
+        {"clase": class_item, "curso": course},
+    )
+
 
 @login_required
 def clase_completar(request, pk):
-    clase = get_object_or_404(Clase, pk=pk)
-    curso = clase.curso
-    
-    if request.method != 'POST':
-        return redirect('cursos:clase_detail', pk=clase.id)
-    
-    if request.user.rol != 'colaborador':
-        messages.error(request, 'Solo los colaboradores pueden completar clases.')
-        return redirect('cursos:clase_detail', pk=clase.id)
-    
-    esta_inscrito = InscripcionCurso.objects.filter(
-        usuario=request.user, curso=curso
-    ).exists()
-    if not esta_inscrito:
-        messages.error(request, 'Debes estar inscrito en el curso para completar clases.')
-        return redirect('cursos:clase_detail', pk=clase.id)
-    
-    ya_existente = ClaseCompletado.objects.filter(
-        usuario=request.user, clase=clase
-    ).exists()
-    if ya_existente:
-        messages.info(request, 'Ya completaste esta clase.')
-        return redirect('cursos:clase_detail', pk=clase.id)
-    
-    clase_anterior = clase.get_clase_anterior()
-    if clase_anterior:
-        anterior_completada = ClaseCompletado.objects.filter(
-            usuario=request.user, clase=clase_anterior
-        ).exists()
-        if not anterior_completada:
-            messages.error(request, 'Debes completar la clase anterior primero.')
-            return redirect('cursos:clase_detail', pk=clase.id)
-    
-    ClaseCompletado.objects.get_or_create(
-        usuario=request.user,
-        clase=clase
-    )
-    messages.success(request, 'Clase marcada como completada.')
-    return redirect('cursos:clase_detail', pk=clase.id)
+    if request.method != "POST":
+        return redirect("cursos:clase_detail", pk=pk)
+    class_item = _required(ClaseRepository.get(pk), "Clase no encontrada.")
+    email = _email(request.user)
+    enrollment = InscripcionRepository.get(email, class_item["curso_id"])
+    if not enrollment:
+        return HttpResponseForbidden("Debes estar inscrito en este curso.")
+    previous, _ = ClaseRepository.previous_and_next(class_item)
+    if previous and not ProgresoClaseRepository.get(email, previous["id"]):
+        messages.error(request, "Debes completar la clase anterior primero.")
+    elif not ProgresoClaseRepository.get(email, pk):
+        ProgresoClaseRepository.complete(email, class_item)
+        if enrollment["estado"] == "asignado":
+            InscripcionRepository.update_state(email, class_item["curso_id"], "en_progreso")
+        messages.success(request, "Clase marcada como completada.")
+    return redirect("cursos:clase_detail", pk=pk)

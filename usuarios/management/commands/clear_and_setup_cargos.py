@@ -1,116 +1,85 @@
-#!/usr/bin/env python
-"""
-Management command to clear database and setup initial cargos.
-"""
-from django.core.management.base import BaseCommand
-from django.db import transaction
-from usuarios.models import Usuario, AreaCargo
-from cursos.models import Curso, Categoria, Material, Clase
-from evaluaciones.models import Evaluacion, BancoPreguntas, Pregunta, Alternativa
-from tareas.models import Tarea, EntregaTarea
-from certificados.models import Certificado
-from calendario.models import EventoCalendario
-from anuncios.models import Anuncio
+from django.core.management.base import BaseCommand, CommandError
+
+from anuncios.repository import AnuncioRepository
+from calendario.repository import CalendarioRepository
+from certificados.repository import CertificadoRepository
+from cursos.repository import (
+    CategoriaRepository,
+    ClaseRepository,
+    CursoRepository,
+    MaterialRepository,
+)
+from evaluaciones.repository import BancoPreguntasRepository, EvaluacionRepository
+from tareas.repository import TareaRepository
+from usuarios.repository import AreaCargoRepository, UsuarioRepository
+
+
+CARGOS = [
+    "Profesional de Atención Directa",
+    "Técnico de Atención Directa",
+    "Asistente de Trato Directo",
+    "Auxiliares de Servicio",
+    "Manipuladores de Alimento",
+    "Administración y Apoyo",
+    "Directivos",
+    "Docente Interno",
+    "Docente Externo",
+]
 
 
 class Command(BaseCommand):
-    help = 'Clear database keeping only admin user and create initial cargos'
+    help = "Limpia los datos de DynamoDB, conserva administradores y recrea cargos"
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--confirmar",
+            action="store_true",
+            help="Confirma la eliminación de datos de la tabla configurada",
+        )
 
     def handle(self, *args, **options):
-        with transaction.atomic():
-            self.stdout.write('Starting database cleanup...')
-            
-            try:
-                admin = Usuario.objects.get(rol='admin')
-                admin_id = admin.id
-                self.stdout.write(f'Found admin user: {admin.username}')
-            except Usuario.DoesNotExist:
-                self.stdout.write(self.style.ERROR('No admin user found! Please create one first.'))
-                return
-            except Usuario.MultipleObjectsReturned:
-                admin = Usuario.objects.filter(rol='admin').first()
-                admin_id = admin.id
-                self.stdout.write(f'Found admin user: {admin.username}')
-            self.stdout.write('Deleting recordatorios...')
-            from usuarios.models import Recordatorio
-            Recordatorio.objects.all().delete()
-            
-            self.stdout.write('Deleting certificados...')
-            Certificado.objects.all().delete()
-            
-            self.stdout.write('Deleting entregas...')
-            EntregaTarea.objects.all().delete()
-            
-            self.stdout.write('Deleting tareas...')
-            Tarea.objects.all().delete()
-            
-            self.stdout.write('Deleting evaluaciones...')
-            Evaluacion.objects.all().delete()
-            
-            self.stdout.write('Deleting preguntas and alternativas...')
-            Alternativa.objects.all().delete()
-            Pregunta.objects.all().delete()
-            
-            self.stdout.write('Deleting bancos de preguntas...')
-            BancoPreguntas.objects.all().delete()
-            
-            self.stdout.write('Deleting materiales and clases...')
-            Material.objects.all().delete()
-            Clase.objects.all().delete()
-            
-            self.stdout.write('Deleting inscripciones...')
-            from cursos.models import InscripcionCurso
-            InscripcionCurso.objects.all().delete()
-            
-            self.stdout.write('Deleting cursos...')
-            Curso.objects.all().delete()
-            
-            self.stdout.write('Deleting categorias...')
-            Categoria.objects.all().delete()
-            
-            self.stdout.write('Deleting eventos de calendario...')
-            EventoCalendario.objects.all().delete()
-            
-            self.stdout.write('Deleting anuncios...')
-            Anuncio.objects.all().delete()
-            
-            self.stdout.write('Deleting non-admin users...')
-            Usuario.objects.exclude(id=admin_id).delete()
-            
-            self.stdout.write('Deleting existing cargos...')
-            AreaCargo.objects.all().delete()
-            
-            self.stdout.write(self.style.SUCCESS('Database cleared successfully!'))
-            
-            self.stdout.write('Creating cargos...')
-            
-            colaborador_cargos = [
-                'Profesional de Atención Directa',
-                'Técnico de Atención Directa',
-                'Asistente de Trato Directo',
-                'Auxiliares de Servicio',
-                'Manipuladores de Alimento',
-            ]
-            
-            admin_cargos = [
-                'Administración y Apoyo',
-                'Directivos',
-            ]
-            
-            docente_cargos = [
-                'Docente Interno',
-                'Docente Externo',
-            ]
-            
-            all_cargos = colaborador_cargos + admin_cargos + docente_cargos
-            
-            for cargo_nombre in all_cargos:
-                AreaCargo.objects.create(nombre=cargo_nombre)
-                self.stdout.write(f'  Created: {cargo_nombre}')
-            
-            self.stdout.write(self.style.SUCCESS(f'\nCreated {len(all_cargos)} cargos successfully!'))
-            self.stdout.write(self.style.SUCCESS('\nSummary:'))
-            self.stdout.write(f'  - Colaborador cargos: {len(colaborador_cargos)}')
-            self.stdout.write(f'  - Administrador cargos: {len(admin_cargos)}')
-            self.stdout.write(f'  - Docente cargos: {len(docente_cargos)}')
-            self.stdout.write(f'\nAdmin user preserved: {admin.username}')
+        if not options["confirmar"]:
+            raise CommandError("La operación requiere el argumento --confirmar.")
+
+        self.stdout.write("Eliminando datos funcionales de DynamoDB...")
+
+        for certificado in CertificadoRepository.list_all():
+            CertificadoRepository.delete(certificado["id"])
+        for evento in CalendarioRepository.all():
+            CalendarioRepository.delete(evento["id"])
+        for anuncio in AnuncioRepository.all():
+            AnuncioRepository.delete(anuncio["id"])
+
+        for banco in BancoPreguntasRepository.list_all():
+            BancoPreguntasRepository.delete_bank(banco["id"])
+
+        for curso in CursoRepository.get_all_courses(enrich=False):
+            curso_id = curso["id"]
+            for tarea in TareaRepository.list_by_course(curso_id):
+                TareaRepository.delete_task(tarea["id"])
+            for evaluacion in EvaluacionRepository.list_by_course(curso_id):
+                EvaluacionRepository.delete_evaluation(evaluacion["id"])
+            for material in MaterialRepository.list_by_course(curso_id):
+                MaterialRepository.delete(material["id"])
+            for clase in ClaseRepository.list_by_course(curso_id):
+                ClaseRepository.delete(clase["id"])
+            CursoRepository.delete_course(curso_id)
+
+        for categoria in CategoriaRepository.list_all():
+            CategoriaRepository.delete(categoria["id"])
+        for usuario in UsuarioRepository.list_all():
+            if usuario.get("rol") != "admin":
+                UsuarioRepository.delete_user(usuario["email"])
+        for cargo in AreaCargoRepository.list_all():
+            AreaCargoRepository.delete(cargo["id"])
+
+        for nombre in CARGOS:
+            AreaCargoRepository.save({"nombre": nombre})
+            self.stdout.write(f"  Cargo creado: {nombre}")
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Limpieza finalizada. Se conservaron los administradores y se recrearon "
+                f"{len(CARGOS)} cargos."
+            )
+        )

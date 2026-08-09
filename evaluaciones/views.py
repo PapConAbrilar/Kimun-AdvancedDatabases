@@ -1,487 +1,404 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import JsonResponse, HttpResponseForbidden
-from django.views.decorators.http import require_POST
-from django.db import transaction
-from django.utils import timezone
-from django.db.models import Q
-from .models import Evaluacion, Pregunta, Alternativa, IntentoEvaluacion, BancoPreguntas
-from .forms import EvaluacionForm, BancoPreguntasForm
-from cursos.models import Curso, InscripcionCurso
-from usuarios.decorators import docente_or_admin_required
-from datetime import datetime
 import json
 import random
+from datetime import datetime
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import Http404, HttpResponseForbidden
+from django.shortcuts import redirect, render
+from django.utils import timezone
+
+from calendario.repository import CalendarioRepository
+from certificados.repository import CertificadoRepository
+from cursos.repository import CursoRepository, InscripcionRepository
+from evaluaciones.forms import BancoPreguntasForm, EvaluacionForm
+from evaluaciones.repository import (
+    BancoPreguntasRepository,
+    EvaluacionRepository,
+    PreguntaRepository,
+    save_question_with_alternatives,
+)
+from usuarios.decorators import docente_or_admin_required
 
 
-def validar_preguntas(preguntas_data):
-    errores = []
-    if not preguntas_data or len(preguntas_data) == 0:
-        errores.append('Debe haber al menos una pregunta.')
-        return errores
-    
-    for i, pregunta in enumerate(preguntas_data):
-        if not pregunta.get('texto', '').strip():
-            errores.append(f'Pregunta {i+1}: El texto es obligatorio.')
-        
-        alternativas = pregunta.get('alternativas', [])
-        if len(alternativas) < 2:
-            errores.append(f'Pregunta {i+1}: Debe tener al menos 2 alternativas.')
-        
-        correcta_index = pregunta.get('correctaIndex')
-        if correcta_index is None or correcta_index < 0 or correcta_index >= len(alternativas):
-            errores.append(f'Pregunta {i+1}: Debe seleccionar una respuesta correcta.')
-    
-    return errores
+def _email(user):
+    return user.email or user.username
+
+
+def _required(value, message):
+    if not value:
+        raise Http404(message)
+    return value
+
+
+def _can_manage(user, course):
+    return user.rol == "admin" or (
+        user.rol == "docente" and course.get("docente_creador_id") == _email(user)
+    )
+
+
+def validar_preguntas(questions):
+    errors = []
+    if not questions:
+        return ["Debe haber al menos una pregunta."]
+    for index, question in enumerate(questions, start=1):
+        if not question.get("texto", "").strip():
+            errors.append(f"Pregunta {index}: el texto es obligatorio.")
+        alternatives = question.get("alternativas", [])
+        if len(alternatives) < 2:
+            errors.append(f"Pregunta {index}: debe tener al menos 2 alternativas.")
+        correct = question.get("correctaIndex")
+        if correct is None or not 0 <= correct < len(alternatives):
+            errors.append(f"Pregunta {index}: debes seleccionar una respuesta correcta.")
+    return errors
+
+
+def _parse_questions(request, form=None):
+    try:
+        questions = json.loads(request.POST.get("preguntas", "[]"))
+    except json.JSONDecodeError:
+        questions = []
+        if form:
+            form.add_error(None, "Formato de preguntas inválido.")
+    errors = validar_preguntas(questions)
+    if form:
+        for error in errors:
+            form.add_error(None, error)
+    return questions, errors
+
+
+def _save_questions(evaluation_id, questions):
+    for current in PreguntaRepository.list_by_evaluation(evaluation_id):
+        PreguntaRepository.delete_question(current["id"])
+    for question in questions:
+        correct = question.get("correctaIndex", 0)
+        alternatives = [
+            {**alternative, "es_correcta": index == correct}
+            for index, alternative in enumerate(question["alternativas"])
+        ]
+        save_question_with_alternatives(
+            {"evaluacion_id": evaluation_id, "texto": question["texto"]},
+            alternatives,
+        )
 
 
 @login_required
 def evaluacion_list(request, curso_pk):
-    curso = get_object_or_404(Curso, pk=curso_pk)
-    evaluaciones = curso.evaluaciones.prefetch_related('intentos').all()
-    
-    for evaluacion in evaluaciones:
-        evaluacion.intentos_del_usuario = evaluacion.intentos.filter(usuario=request.user).count()
-        evaluacion.max_intentos_usuario = evaluacion.max_intentos if evaluacion.max_intentos > 0 else None
-    
-    context = {
-        'curso': curso,
-        'evaluaciones': evaluaciones,
-    }
-    return render(request, 'evaluaciones/evaluacion_list.html', context)
+    course = _required(CursoRepository.get_course(curso_pk), "Curso no encontrado.")
+    evaluations = EvaluacionRepository.list_by_course(curso_pk)
+    email = _email(request.user)
+    for evaluation in evaluations:
+        attempts = EvaluacionRepository.get_intentos_por_usuario(email, evaluation["id"])
+        evaluation["intentos_del_usuario"] = len(attempts)
+        evaluation["max_intentos_usuario"] = evaluation.get("max_intentos") or None
+    return render(
+        request,
+        "evaluaciones/evaluacion_list.html",
+        {"curso": course, "evaluaciones": evaluations},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def evaluacion_create(request, curso_pk):
-    curso = get_object_or_404(Curso, pk=curso_pk)
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes crear evaluaciones en este curso.')
-    
-    if request.method == 'POST':
-        form = EvaluacionForm(request.POST)
-        
-        try:
-            preguntas_data = json.loads(request.POST.get('preguntas', '[]'))
-        except json.JSONDecodeError:
-            form.add_error(None, 'Formato de preguntas inválido.')
-            preguntas_data = []
-        
-        errores_preguntas = validar_preguntas(preguntas_data)
-        
-        if not form.is_valid() or errores_preguntas:
-            for error in errores_preguntas:
-                form.add_error(None, error)
-            context = {'curso': curso, 'form': form}
-            return render(request, 'evaluaciones/evaluacion_form.html', context)
-
-        try:
-            with transaction.atomic():
-                evaluacion = form.save(commit=False)
-                evaluacion.curso = curso
-                evaluacion.save()
-                
-                for pregunta_data in preguntas_data:
-                    pregunta = Pregunta.objects.create(
-                        evaluacion=evaluacion,
-                        texto=pregunta_data['texto']
-                    )
-                    
-                    correcta_index = pregunta_data.get('correctaIndex', 0)
-                    
-                    for idx, alt_data in enumerate(pregunta_data['alternativas']):
-                        Alternativa.objects.create(
-                            pregunta=pregunta,
-                            texto=alt_data['texto'],
-                            es_correcta=(idx == correcta_index)
-                        )
-            
-            messages.success(request, 'Evaluación creada exitosamente.')
-            return redirect('evaluaciones:evaluacion_list', curso_pk=curso_pk)
-        except Exception as e:
-            form.add_error(None, f'Error al guardar la evaluación: {str(e)}')
-            context = {'curso': curso, 'form': form}
-            return render(request, 'evaluaciones/evaluacion_form.html', context)
-    
-    context = {
-        'curso': curso,
-        'form': EvaluacionForm(initial={'porcentaje_aprobacion': 70, 'max_intentos': 0, 'duracion_minutos': None})
-    }
-    return render(request, 'evaluaciones/evaluacion_form.html', context)
+    course = _required(CursoRepository.get_course(curso_pk), "Curso no encontrado.")
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No puedes crear evaluaciones en este curso.")
+    form = EvaluacionForm(
+        request.POST or None,
+        initial={"porcentaje_aprobacion": 70, "max_intentos": 0},
+    )
+    questions, question_errors = _parse_questions(request, form) if request.method == "POST" else ([], [])
+    if request.method == "POST" and form.is_valid() and not question_errors:
+        evaluation = EvaluacionRepository.save_evaluation(
+            {
+                **form.cleaned_data,
+                "curso_id": str(curso_pk),
+                "creado_por_id": _email(request.user),
+            }
+        )
+        _save_questions(evaluation["id"], questions)
+        CalendarioRepository.sync_evaluation(evaluation)
+        messages.success(request, "Evaluación creada exitosamente.")
+        return redirect("evaluaciones:evaluacion_list", curso_pk=curso_pk)
+    return render(
+        request,
+        "evaluaciones/evaluacion_form.html",
+        {"curso": course, "form": form},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def evaluacion_edit(request, pk):
-    evaluacion = get_object_or_404(Evaluacion, pk=pk)
-    curso = evaluacion.curso
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes editar evaluaciones de este curso.')
-    
-    if request.method == 'POST':
-        form = EvaluacionForm(request.POST, instance=evaluacion)
-        
-        try:
-            preguntas_data = json.loads(request.POST.get('preguntas', '[]'))
-        except json.JSONDecodeError:
-            form.add_error(None, 'Formato de preguntas inválido.')
-            preguntas_data = []
-        
-        errores_preguntas = validar_preguntas(preguntas_data)
-        
-        if not form.is_valid() or errores_preguntas:
-            for error in errores_preguntas:
-                form.add_error(None, error)
-            context = {
-                'evaluacion': evaluacion,
-                'curso': evaluacion.curso,
-                'form': form,
-            }
-            return render(request, 'evaluaciones/evaluacion_form.html', context)
-
-        try:
-            with transaction.atomic():
-                form.save()
-                
-                evaluacion.preguntas.all().delete()
-                
-                for pregunta_data in preguntas_data:
-                    pregunta = Pregunta.objects.create(
-                        evaluacion=evaluacion,
-                        texto=pregunta_data['texto']
-                    )
-                    
-                    correcta_index = pregunta_data.get('correctaIndex', 0)
-                    
-                    for idx, alt_data in enumerate(pregunta_data['alternativas']):
-                        Alternativa.objects.create(
-                            pregunta=pregunta,
-                            texto=alt_data['texto'],
-                            es_correcta=(idx == correcta_index)
-                        )
-            
-            messages.success(request, 'Evaluación actualizada.')
-            return redirect('evaluaciones:evaluacion_list', curso_pk=evaluacion.curso.pk)
-        except Exception as e:
-            form.add_error(None, f'Error al guardar la evaluación: {str(e)}')
-            context = {
-                'evaluacion': evaluacion,
-                'curso': evaluacion.curso,
-                'form': form,
-            }
-            return render(request, 'evaluaciones/evaluacion_form.html', context)
-    
-    context = {
-        'evaluacion': evaluacion,
-        'curso': evaluacion.curso,
-        'form': EvaluacionForm(instance=evaluacion),
-    }
-    return render(request, 'evaluaciones/evaluacion_form.html', context)
+    evaluation = _required(
+        EvaluacionRepository.get_evaluation(pk), "Evaluación no encontrada."
+    )
+    course = evaluation["curso"]
+    if not _can_manage(request.user, course):
+        return HttpResponseForbidden("No puedes editar esta evaluación.")
+    form = EvaluacionForm(request.POST or None, instance=evaluation)
+    questions, question_errors = _parse_questions(request, form) if request.method == "POST" else ([], [])
+    if request.method == "POST" and form.is_valid() and not question_errors:
+        evaluation = EvaluacionRepository.save_evaluation(
+            {
+                **form.cleaned_data,
+                "curso_id": course["id"],
+                "creado_por_id": evaluation.get("creado_por_id", ""),
+            },
+            pk,
+        )
+        _save_questions(pk, questions)
+        CalendarioRepository.sync_evaluation(evaluation)
+        messages.success(request, "Evaluación actualizada.")
+        return redirect("evaluaciones:evaluacion_list", curso_pk=course["id"])
+    return render(
+        request,
+        "evaluaciones/evaluacion_form.html",
+        {"evaluacion": evaluation, "curso": course, "form": form},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def evaluacion_delete(request, pk):
-    evaluacion = get_object_or_404(Evaluacion, pk=pk)
-    curso = evaluacion.curso
-    
-    if request.user.rol == 'docente' and curso.docente_creador != request.user:
-        return HttpResponseForbidden('No puedes eliminar evaluaciones de este curso.')
-    
-    if request.method == 'POST':
-        curso_pk = evaluacion.curso.pk
-        evaluacion.delete()
-        messages.success(request, 'Evaluación eliminada.')
-        return redirect('evaluaciones:evaluacion_list', curso_pk=curso_pk)
-    
-    context = {'evaluacion': evaluacion}
-    return render(request, 'evaluaciones/evaluacion_confirm_delete.html', context)
+    evaluation = _required(
+        EvaluacionRepository.get_evaluation(pk), "Evaluación no encontrada."
+    )
+    if not _can_manage(request.user, evaluation["curso"]):
+        return HttpResponseForbidden("No puedes eliminar esta evaluación.")
+    if request.method == "POST":
+        course_id = evaluation["curso_id"]
+        EvaluacionRepository.delete_evaluation(pk)
+        CalendarioRepository.delete_by_origin(f"evaluacion-{pk}")
+        messages.success(request, "Evaluación eliminada.")
+        return redirect("evaluaciones:evaluacion_list", curso_pk=course_id)
+    return render(
+        request,
+        "evaluaciones/evaluacion_confirm_delete.html",
+        {"evaluacion": evaluation},
+    )
 
 
 @login_required
 def tomar_evaluacion(request, pk):
-    evaluacion = get_object_or_404(Evaluacion, pk=pk)
+    evaluation = _required(
+        EvaluacionRepository.get_evaluation(pk), "Evaluación no encontrada."
+    )
+    email = _email(request.user)
+    enrollment = InscripcionRepository.get(email, evaluation["curso_id"])
+    if not enrollment:
+        messages.error(request, "No estás inscrito en este curso.")
+        return redirect("cursos:curso_detail", pk=evaluation["curso_id"])
+    attempts = EvaluacionRepository.get_intentos_por_usuario(email, pk)
+    if evaluation.get("max_intentos", 0) > 0 and len(attempts) >= evaluation["max_intentos"]:
+        messages.error(request, "Has agotado los intentos disponibles.")
+        return redirect("evaluaciones:evaluacion_list", curso_pk=evaluation["curso_id"])
 
-    inscripcion = InscripcionCurso.objects.filter(
-        usuario=request.user,
-        curso=evaluacion.curso
-    ).first()
-
-    if not inscripcion:
-        messages.error(request, 'No estás inscrito en este curso.')
-        return redirect('cursos:curso_detail', pk=evaluacion.curso.pk)
-
-    intentos_usuario = IntentoEvaluacion.objects.filter(
-        usuario=request.user,
-        evaluacion=evaluacion
-    ).count()
-
-    if evaluacion.max_intentos > 0 and intentos_usuario >= evaluacion.max_intentos:
-        messages.error(request, 'Has agotado todos los intentos disponibles para esta evaluación.')
-        return redirect('evaluaciones:evaluacion_list', curso_pk=evaluacion.curso.pk)
-
-    session_key_hora_inicio = f'eval_{evaluacion.pk}_hora_inicio'
-    session_key_preguntas = f'eval_{evaluacion.pk}_preguntas_seleccionadas'
-
-    hora_inicio_iso = request.session.get(session_key_hora_inicio)
-    hora_inicio_dt = None
-
-    if isinstance(hora_inicio_iso, str):
+    start_key = f"eval_{pk}_hora_inicio"
+    questions_key = f"eval_{pk}_preguntas"
+    start_time = None
+    if request.session.get(start_key):
         try:
-            hora_inicio_dt = datetime.fromisoformat(hora_inicio_iso)
-            if timezone.is_naive(hora_inicio_dt):
-                hora_inicio_dt = timezone.make_aware(hora_inicio_dt, timezone.get_current_timezone())
+            start_time = datetime.fromisoformat(request.session[start_key])
+            if timezone.is_naive(start_time):
+                start_time = timezone.make_aware(start_time)
         except ValueError:
-            hora_inicio_dt = None
+            start_time = None
 
-    preguntas = None
-    if request.method == 'GET':
-        hora_inicio_dt = timezone.now()
-        request.session[session_key_hora_inicio] = hora_inicio_dt.isoformat()
+    all_questions = evaluation["preguntas"]
+    if request.method == "GET":
+        start_time = timezone.now()
+        request.session[start_key] = start_time.isoformat()
+        amount = evaluation.get("preguntas_por_intento")
+        questions = random.sample(all_questions, min(amount, len(all_questions))) if amount else all_questions
+        request.session[questions_key] = [item["id"] for item in questions]
+    else:
+        selected = set(request.session.get(questions_key, []))
+        questions = [item for item in all_questions if not selected or item["id"] in selected]
 
-        if evaluacion.preguntas_por_intento:
-            preguntas_disponibles = list(evaluacion.preguntas.prefetch_related('alternativas').all())
-            if len(preguntas_disponibles) >= evaluacion.preguntas_por_intento:
-                preguntas = random.sample(preguntas_disponibles, evaluacion.preguntas_por_intento)
-            else:
-                preguntas = preguntas_disponibles
-            preguntas_ids = [p.pk for p in preguntas]
-            request.session[session_key_preguntas] = preguntas_ids
-        else:
-            preguntas = evaluacion.preguntas.prefetch_related('alternativas').all()
-
-    if preguntas is None:
-        preguntas = evaluacion.preguntas.prefetch_related('alternativas').all()
-
-    if request.method == 'POST':
-        if evaluacion.duracion_minutos and hora_inicio_dt:
-            elapsed_seconds = (timezone.now() - hora_inicio_dt).total_seconds()
-            if elapsed_seconds > evaluacion.duracion_minutos * 60:
-                messages.error(request, 'El tiempo para responder la evaluación ha expirado.')
-                return redirect('evaluaciones:evaluacion_list', curso_pk=evaluacion.curso.pk)
-
+    if request.method == "POST":
+        duration = evaluation.get("duracion_minutos")
+        if duration and start_time:
+            if (timezone.now() - start_time).total_seconds() > duration * 60:
+                messages.error(request, "El tiempo para responder ha expirado.")
+                return redirect("evaluaciones:evaluacion_list", curso_pk=evaluation["curso_id"])
         try:
-            respuestas = json.loads(request.POST.get('respuestas', '{}'))
+            answers = json.loads(request.POST.get("respuestas", "{}"))
         except json.JSONDecodeError:
-            respuestas = {}
-            messages.error(request, 'No se pudo procesar tus respuestas.')
-            return redirect('evaluaciones:evaluacion_list', curso_pk=evaluacion.curso.pk)
-
-        preguntas_ids_seleccionadas = request.session.get(session_key_preguntas)
-        if preguntas_ids_seleccionadas:
-            preguntas = Pregunta.objects.filter(pk__in=preguntas_ids_seleccionadas).prefetch_related('alternativas')
-        else:
-            preguntas = evaluacion.preguntas.prefetch_related('alternativas').all()
-
-        total_preguntas = preguntas.count()
-        respuestas_correctas = 0
-
-        for pregunta in preguntas:
-            respuesta_seleccionada = respuestas.get(str(pregunta.pk))
-            if respuesta_seleccionada:
-                alternativa_correcta = pregunta.alternativas.filter(es_correcta=True).first()
-                if alternativa_correcta and str(respuesta_seleccionada) == str(alternativa_correcta.pk):
-                    respuestas_correctas += 1
-
-        puntaje = int((respuestas_correctas / total_preguntas) * 100) if total_preguntas > 0 else 0
-        aprobado = puntaje >= evaluacion.porcentaje_aprobacion
-
-        intento = IntentoEvaluacion.objects.create(
-            usuario=request.user,
-            evaluacion=evaluacion,
-            puntaje_obtenido=puntaje,
-            aprobado=aprobado,
-            hora_inicio=hora_inicio_dt,
-            respuestas=respuestas
+            messages.error(request, "No se pudieron procesar las respuestas.")
+            return redirect("evaluaciones:evaluacion_list", curso_pk=evaluation["curso_id"])
+        correct = 0
+        for question in questions:
+            selected = str(answers.get(str(question["id"]), ""))
+            valid = next(
+                (
+                    alternative
+                    for alternative in question["alternativas"]
+                    if alternative.get("es_correcta")
+                ),
+                None,
+            )
+            if valid and selected == str(valid["id"]):
+                correct += 1
+        score = int(correct * 100 / len(questions)) if questions else 0
+        passed = score >= evaluation.get("porcentaje_aprobacion", 70)
+        attempt = EvaluacionRepository.guardar_intento(
+            email,
+            pk,
+            score,
+            passed,
+            answers,
+            hora_inicio=start_time,
         )
-        
-        curso = evaluacion.curso
-        if curso.evaluaciones.exists():
-            todas_aprobadas = True
-            for ev in curso.evaluaciones.all():
-                ultimo = ev.intentos.filter(usuario=request.user).order_by('-fecha_intento').first()
-                if not ultimo or not ultimo.aprobado:
-                    todas_aprobadas = False
-                    break
-            
-            if todas_aprobadas:
-                inscripcion = InscripcionCurso.objects.filter(
-                    usuario=request.user,
-                    curso=curso
-                ).first()
-                if inscripcion and inscripcion.estado != 'completado':
-                    inscripcion.estado = 'completado'
-                    inscripcion.save()
-                
-                # Auto-create pending certificate
-                from certificados.models import Certificado
-                Certificado.objects.get_or_create(
-                    usuario=request.user,
-                    curso=curso,
-                    defaults={'estado': 'pendiente'}
-                )
-        
-        return redirect('evaluaciones:resultado_evaluacion', pk=pk, intento_pk=intento.pk)
-    
-    context = {
-        'evaluacion': evaluacion,
-        'preguntas': preguntas,
-        'intentos_usuario': intentos_usuario,
-    }
-    return render(request, 'evaluaciones/tomar_evaluacion.html', context)
+        course_evaluations = EvaluacionRepository.list_by_course(evaluation["curso_id"])
+        all_passed = all(
+            any(
+                item.get("aprobado")
+                for item in EvaluacionRepository.get_intentos_por_usuario(email, item_eval["id"])
+            )
+            for item_eval in course_evaluations
+        )
+        if course_evaluations and all_passed:
+            InscripcionRepository.update_state(email, evaluation["curso_id"], "completado")
+            CertificadoRepository.create(email, evaluation["curso_id"])
+        request.session.pop(start_key, None)
+        request.session.pop(questions_key, None)
+        return redirect(
+            "evaluaciones:resultado_evaluacion", pk=pk, intento_pk=attempt["id"]
+        )
+
+    return render(
+        request,
+        "evaluaciones/tomar_evaluacion.html",
+        {"evaluacion": evaluation, "preguntas": questions, "intentos_usuario": len(attempts)},
+    )
 
 
 @login_required
 def resultado_evaluacion(request, pk, intento_pk):
-    evaluacion = get_object_or_404(Evaluacion, pk=pk)
-    
-    try:
-        intento = IntentoEvaluacion.objects.get(pk=intento_pk, usuario=request.user, evaluacion=evaluacion)
-    except IntentoEvaluacion.DoesNotExist:
-        messages.error(request, 'No se encontró el intento de evaluación.')
-        return redirect('evaluaciones:evaluacion_list', curso_pk=evaluacion.curso.pk)
-
-    preguntas = evaluacion.preguntas.prefetch_related('alternativas').all()
-
-    context = {
-        'evaluacion': evaluacion,
-        'intento': intento,
-        'preguntas': preguntas,
-    }
-    return render(request, 'evaluaciones/resultado_evaluacion.html', context)
+    evaluation = _required(
+        EvaluacionRepository.get_evaluation(pk), "Evaluación no encontrada."
+    )
+    attempt = EvaluacionRepository.get_attempt(_email(request.user), pk, intento_pk)
+    if not attempt:
+        messages.error(request, "No se encontró el intento de evaluación.")
+        return redirect("evaluaciones:evaluacion_list", curso_pk=evaluation["curso_id"])
+    return render(
+        request,
+        "evaluaciones/resultado_evaluacion.html",
+        {"evaluacion": evaluation, "intento": attempt, "preguntas": evaluation["preguntas"]},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def banco_list(request):
-    if request.user.rol == 'admin':
-        bancos = BancoPreguntas.objects.all().select_related('curso', 'creado_por')
-    else:
-        bancos = BancoPreguntas.objects.filter(
-            Q(creado_por=request.user) | Q(es_publico=True)
-        ).select_related('curso', 'creado_por').distinct()
-
-    context = {'bancos': bancos}
-    return render(request, 'evaluaciones/banco_list.html', context)
+    banks = BancoPreguntasRepository.list_all(_email(request.user), request.user.rol)
+    return render(request, "evaluaciones/banco_list.html", {"bancos": banks})
 
 
 @login_required
 @docente_or_admin_required
 def banco_create(request):
-    if request.method == 'POST':
-        form = BancoPreguntasForm(request.POST)
-        if form.is_valid():
-            banco = form.save(commit=False)
-            banco.creado_por = request.user
-            banco.save()
-            messages.success(request, 'Banco de preguntas creado exitosamente.')
-            return redirect('evaluaciones:banco_list')
-    else:
-        form = BancoPreguntasForm()
-
-    context = {'form': form}
-    return render(request, 'evaluaciones/banco_form.html', context)
+    courses = CursoRepository.get_all_courses()
+    form = BancoPreguntasForm(request.POST or None, cursos=courses)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        BancoPreguntasRepository.save(
+            {
+                "nombre": data["nombre"],
+                "descripcion": data.get("descripcion", ""),
+                "curso_id": data.get("curso", ""),
+                "es_publico": data.get("es_publico", False),
+                "creado_por_id": _email(request.user),
+                "fecha_creacion": timezone.now(),
+            }
+        )
+        messages.success(request, "Banco de preguntas creado.")
+        return redirect("evaluaciones:banco_list")
+    return render(request, "evaluaciones/banco_form.html", {"form": form})
 
 
 @login_required
 @docente_or_admin_required
 def banco_edit(request, pk):
-    banco = get_object_or_404(BancoPreguntas, pk=pk)
-
-    if request.user.rol == 'docente' and banco.creado_por != request.user:
-        return HttpResponseForbidden('No puedes editar este banco de preguntas.')
-
-    if request.method == 'POST':
-        form = BancoPreguntasForm(request.POST, instance=banco)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Banco de preguntas actualizado.')
-            return redirect('evaluaciones:banco_list')
-    else:
-        form = BancoPreguntasForm(instance=banco)
-
-    context = {'form': form, 'banco': banco}
-    return render(request, 'evaluaciones/banco_form.html', context)
+    bank = _required(BancoPreguntasRepository.get_bank(pk), "Banco no encontrado.")
+    if request.user.rol == "docente" and bank.get("creado_por_id") != _email(request.user):
+        return HttpResponseForbidden("No puedes editar este banco.")
+    courses = CursoRepository.get_all_courses()
+    initial = {**bank, "curso": bank.get("curso_id", "")}
+    form = BancoPreguntasForm(request.POST or None, instance=initial, cursos=courses)
+    if request.method == "POST" and form.is_valid():
+        data = form.cleaned_data
+        BancoPreguntasRepository.save(
+            {
+                "nombre": data["nombre"],
+                "descripcion": data.get("descripcion", ""),
+                "curso_id": data.get("curso", ""),
+                "es_publico": data.get("es_publico", False),
+                "creado_por_id": bank.get("creado_por_id"),
+                "fecha_creacion": bank.get("fecha_creacion"),
+            },
+            pk,
+        )
+        messages.success(request, "Banco actualizado.")
+        return redirect("evaluaciones:banco_list")
+    return render(request, "evaluaciones/banco_form.html", {"form": form, "banco": bank})
 
 
 @login_required
 @docente_or_admin_required
 def banco_delete(request, pk):
-    banco = get_object_or_404(BancoPreguntas, pk=pk)
-
-    if request.user.rol == 'docente' and banco.creado_por != request.user:
-        return HttpResponseForbidden('No puedes eliminar este banco de preguntas.')
-
-    if request.method == 'POST':
-        banco.delete()
-        messages.success(request, 'Banco de preguntas eliminado.')
-        return redirect('evaluaciones:banco_list')
-
-    context = {'banco': banco}
-    return render(request, 'evaluaciones/banco_confirm_delete.html', context)
+    bank = _required(BancoPreguntasRepository.get_bank(pk), "Banco no encontrado.")
+    if request.user.rol == "docente" and bank.get("creado_por_id") != _email(request.user):
+        return HttpResponseForbidden("No puedes eliminar este banco.")
+    if request.method == "POST":
+        BancoPreguntasRepository.delete_bank(pk)
+        messages.success(request, "Banco eliminado.")
+        return redirect("evaluaciones:banco_list")
+    return render(request, "evaluaciones/banco_confirm_delete.html", {"banco": bank})
 
 
 @login_required
 @docente_or_admin_required
 def banco_detail(request, pk):
-    banco = get_object_or_404(BancoPreguntas, pk=pk)
-
-    if request.user.rol == 'docente' and banco.creado_por != request.user and not banco.es_publico:
-        return HttpResponseForbidden('No puedes ver este banco de preguntas.')
-
-    preguntas = banco.preguntas.prefetch_related('alternativas').all()
-
-    context = {'banco': banco, 'preguntas': preguntas}
-    return render(request, 'evaluaciones/banco_detail.html', context)
+    bank = _required(BancoPreguntasRepository.get_bank(pk), "Banco no encontrado.")
+    if request.user.rol == "docente" and bank.get("creado_por_id") != _email(request.user) and not bank.get("es_publico"):
+        return HttpResponseForbidden("No puedes ver este banco.")
+    return render(
+        request,
+        "evaluaciones/banco_detail.html",
+        {"banco": bank, "preguntas": bank["preguntas"]},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def banco_agregar_pregunta(request, banco_pk):
-    banco = get_object_or_404(BancoPreguntas, pk=banco_pk)
-
-    if request.user.rol == 'docente' and banco.creado_por != request.user:
-        return HttpResponseForbidden('No puedes agregar preguntas a este banco.')
-
-    if request.method == 'POST':
-        try:
-            preguntas_data = json.loads(request.POST.get('preguntas', '[]'))
-        except json.JSONDecodeError:
-            messages.error(request, 'Formato de preguntas inválido.')
-            return redirect('evaluaciones:banco_detail', pk=banco_pk)
-
-        errores_preguntas = validar_preguntas(preguntas_data)
-
-        if errores_preguntas:
-            for error in errores_preguntas:
+    bank = _required(BancoPreguntasRepository.get_bank(banco_pk), "Banco no encontrado.")
+    if request.user.rol == "docente" and bank.get("creado_por_id") != _email(request.user):
+        return HttpResponseForbidden("No puedes agregar preguntas a este banco.")
+    if request.method == "POST":
+        questions, errors = _parse_questions(request)
+        if errors:
+            for error in errors:
                 messages.error(request, error)
-            return redirect('evaluaciones:banco_detail', pk=banco_pk)
-
-        try:
-            with transaction.atomic():
-                for pregunta_data in preguntas_data:
-                    pregunta = Pregunta.objects.create(
-                        banco=banco,
-                        texto=pregunta_data['texto']
-                    )
-
-                    correcta_index = pregunta_data.get('correctaIndex', 0)
-
-                    for idx, alt_data in enumerate(pregunta_data['alternativas']):
-                        Alternativa.objects.create(
-                            pregunta=pregunta,
-                            texto=alt_data['texto'],
-                            es_correcta=(idx == correcta_index)
-                        )
-
-            messages.success(request, 'Preguntas agregadas al banco exitosamente.')
-        except Exception as e:
-            messages.error(request, f'Error al guardar las preguntas: {str(e)}')
-
-        return redirect('evaluaciones:banco_detail', pk=banco_pk)
-
-    context = {'banco': banco}
-    return render(request, 'evaluaciones/banco_agregar_pregunta.html', context)
+        else:
+            for question in questions:
+                correct = question.get("correctaIndex", 0)
+                alternatives = [
+                    {**alternative, "es_correcta": index == correct}
+                    for index, alternative in enumerate(question["alternativas"])
+                ]
+                save_question_with_alternatives(
+                    {"banco_id": str(banco_pk), "texto": question["texto"]},
+                    alternatives,
+                )
+            messages.success(request, "Preguntas agregadas al banco.")
+        return redirect("evaluaciones:banco_detail", pk=banco_pk)
+    return render(
+        request,
+        "evaluaciones/banco_agregar_pregunta.html",
+        {"banco": bank},
+    )

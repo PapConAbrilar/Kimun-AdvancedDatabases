@@ -27,11 +27,11 @@
                 <strong style="color: var(--color-text);">{{ categoria.nombre }}</strong>?
             </p>
             
-            {% if categoria.cursos.count > 0 %}
+            {% if categoria.cursos_count > 0 %}
             <div class="p-4 rounded-xl mb-6" style="background-color: #fef3c7;">
                 <p class="text-sm" style="color: #92400e;">
                     <i class="bi bi-info-circle me-1"></i>
-                    Esta categoría tiene {{ categoria.cursos.count }} curso{{ categoria.cursos.count|pluralize }}. 
+                    Esta categoría tiene {{ categoria.cursos_count }} curso{{ categoria.cursos_count|pluralize }}.
                     Los cursos将成为未分类。
                 </p>
             </div>

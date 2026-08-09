@@ -1,6 +1,6 @@
 from django.http import HttpResponseForbidden
 from django.contrib.auth.mixins import UserPassesTestMixin
-from cursos.models import Curso
+from cursos.repository import CursoRepository
 
 
 class RoleRequiredMixin(UserPassesTestMixin):
@@ -35,9 +35,10 @@ class CourseOwnerOrAdminMixin(UserPassesTestMixin):
             curso_pk = self.kwargs.get('pk') or self.kwargs.get('curso_pk')
             if curso_pk:
                 try:
-                    curso = Curso.objects.get(pk=curso_pk)
-                    return curso.docente_creador == self.request.user
-                except Curso.DoesNotExist:
+                    curso = CursoRepository.get_course(curso_pk, enrich=False)
+                    email = self.request.user.email or self.request.user.username
+                    return bool(curso and curso.get('docente_creador_id') == email)
+                except (TypeError, ValueError):
                     return False
         
         return False

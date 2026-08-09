@@ -1,50 +1,36 @@
 from django import forms
 
-from .models import Anuncio
+from kimun.forms import FormularioDiccionario
 
 
-class AnuncioForm(forms.ModelForm):
-    class Meta:
-        model = Anuncio
-        fields = [
-            'titulo',
-            'contenido',
-            'prioridad',
-            'curso',
-            'publicado',
-            'fecha_publicacion',
-            'fecha_expiracion',
+INPUT_CLASS = "input-field w-full px-4 py-3 rounded-xl"
+
+
+class AnuncioForm(FormularioDiccionario):
+    titulo = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    contenido = forms.CharField(widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 5}))
+    prioridad = forms.ChoiceField(
+        choices=[
+            ("info", "Informativo"),
+            ("aviso", "Aviso"),
+            ("importante", "Importante"),
+            ("urgente", "Urgente"),
         ]
-        widgets = {
-            'titulo': forms.TextInput(attrs={'class': 'input-field w-full px-4 py-3 rounded-xl'}),
-            'contenido': forms.Textarea(attrs={'class': 'input-field w-full px-4 py-3 rounded-xl', 'rows': 5}),
-            'prioridad': forms.Select(attrs={'class': 'input-field w-full px-4 py-3 rounded-xl'}),
-            'curso': forms.Select(attrs={'class': 'input-field w-full px-4 py-3 rounded-xl'}),
-            'publicado': forms.CheckboxInput(attrs={'class': 'input-field'}),
-            'fecha_publicacion': forms.DateTimeInput(
-                attrs={'class': 'input-field w-full px-4 py-3 rounded-xl', 'type': 'datetime-local'},
-                format='%Y-%m-%dT%H:%M',
-            ),
-            'fecha_expiracion': forms.DateTimeInput(
-                attrs={'class': 'input-field w-full px-4 py-3 rounded-xl', 'type': 'datetime-local'},
-                format='%Y-%m-%dT%H:%M',
-            ),
-        }
+    )
+    curso = forms.ChoiceField(required=False)
+    publicado = forms.BooleanField(required=False)
+    fecha_publicacion = forms.DateTimeField(required=False, widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
+    fecha_expiracion = forms.DateTimeField(required=False, widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, cursos=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['curso'].required = False
-        if self.instance and self.instance.fecha_publicacion:
-            self.initial['fecha_publicacion'] = self.instance.fecha_publicacion.strftime('%Y-%m-%dT%H:%M')
-        if self.instance and self.instance.fecha_expiracion:
-            self.initial['fecha_expiracion'] = self.instance.fecha_expiracion.strftime('%Y-%m-%dT%H:%M')
+        self.fields["curso"].choices = [("", "General")] + [
+            (course["id"], course["titulo"]) for course in (cursos or [])
+        ]
 
     def clean(self):
-        cleaned_data = super().clean()
-        fecha_publicacion = cleaned_data.get('fecha_publicacion')
-        fecha_expiracion = cleaned_data.get('fecha_expiracion')
-
-        if fecha_publicacion and fecha_expiracion and fecha_expiracion <= fecha_publicacion:
-            raise forms.ValidationError('La fecha de expiración debe ser posterior a la fecha de publicación.')
-
-        return cleaned_data
+        data = super().clean()
+        if data.get("fecha_publicacion") and data.get("fecha_expiracion"):
+            if data["fecha_expiracion"] <= data["fecha_publicacion"]:
+                raise forms.ValidationError("La expiración debe ser posterior a la publicación.")
+        return data

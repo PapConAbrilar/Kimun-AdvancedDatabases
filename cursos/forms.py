@@ -1,151 +1,87 @@
 from django import forms
-from django.conf import settings
-from .models import Curso, Material, Categoria, Clase
+from django.utils import timezone
+
+from kimun.forms import FormularioDiccionario
 
 
-class CursoForm(forms.ModelForm):
-    class Meta:
-        model = Curso
-        fields = ['titulo', 'descripcion', 'categoria', 'estado', 'fecha_limite']
-        widgets = {
-            'titulo': forms.TextInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'Ej: Primeros Auxilios'
-            }),
-            'descripcion': forms.Textarea(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'rows': 4,
-                'placeholder': 'Describe el contenido y objetivos del curso...'
-            }),
-            'categoria': forms.Select(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl'
-            }),
-            'estado': forms.Select(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl'
-            }),
-            'fecha_limite': forms.DateTimeInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl',
-                'type': 'datetime-local'
-            }, format='%Y-%m-%dT%H:%M'),
-        }
+INPUT_CLASS = "input-field w-full px-4 py-3 rounded-xl"
 
-    def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
+
+class CursoForm(FormularioDiccionario):
+    titulo = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    descripcion = forms.CharField(widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 4}))
+    categoria = forms.ChoiceField(required=False, widget=forms.Select(attrs={"class": INPUT_CLASS}))
+    estado = forms.ChoiceField(
+        choices=[("borrador", "Borrador"), ("publicado", "Publicado")],
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+    )
+    docente_creador = forms.ChoiceField(
+        required=False,
+        label="Docente instructor",
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+    )
+    fecha_limite = forms.DateTimeField(
+        required=False,
+        widget=forms.DateTimeInput(
+            attrs={"class": INPUT_CLASS, "type": "datetime-local"},
+            format="%Y-%m-%dT%H:%M",
+        ),
+    )
+
+    def __init__(self, *args, categorias=None, docentes=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['categoria'].required = False
-        self.fields['fecha_limite'].required = False
-        if self.instance and self.instance.fecha_limite:
-            self.initial['fecha_limite'] = self.instance.fecha_limite.strftime('%Y-%m-%dT%H:%M')
-        
-        if self.user and self.user.rol == 'admin':
-            from usuarios.models import Usuario
-            self.fields['docente_creador'] = forms.ModelChoiceField(
-                queryset=Usuario.objects.filter(rol='docente').order_by('first_name', 'last_name'),
-                required=True,
-                label='Docente Instructor',
-                widget=forms.Select(attrs={
-                    'class': 'input-field w-full px-4 py-3 rounded-xl'
-                })
-            )
-            self.order_fields(['titulo', 'descripcion', 'categoria', 'estado', 'docente_creador', 'fecha_limite'])
+        self.fields["categoria"].choices = [("", "Sin categoría")] + [
+            (item["id"], item["nombre"]) for item in (categorias or [])
+        ]
+        self.fields["docente_creador"].choices = [
+            (item["email"], item["nombre"]) for item in (docentes or [])
+        ]
+        if not user or user.rol != "admin":
+            self.fields.pop("docente_creador")
 
 
-class MaterialForm(forms.ModelForm):
-    class Meta:
-        model = Material
-        fields = ['titulo', 'tipo', 'archivo', 'url']
-        widgets = {
-            'titulo': forms.TextInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'Ej: Manual de Primeros Auxilios'
-            }),
-            'tipo': forms.Select(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl'
-            }),
-            'archivo': forms.FileInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'accept': '.pdf'
-            }),
-            'url': forms.URLInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'https://www.youtube.com/watch?v=...'
-            }),
-        }
+class MaterialForm(FormularioDiccionario):
+    titulo = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    tipo = forms.ChoiceField(
+        choices=[("pdf", "PDF"), ("video", "Video URL")],
+        widget=forms.Select(attrs={"class": INPUT_CLASS}),
+    )
+    archivo = forms.FileField(required=False)
+    url = forms.URLField(required=False, widget=forms.URLInput(attrs={"class": INPUT_CLASS}))
 
     def clean(self):
-        cleaned_data = super().clean()
-        tipo = cleaned_data.get('tipo')
-        archivo = cleaned_data.get('archivo')
-        url = cleaned_data.get('url')
-
-        if tipo == 'pdf' and not archivo:
-            self.add_error('archivo', 'Debes subir un archivo PDF para este tipo de material.')
-
-        if tipo == 'video' and not url:
-            self.add_error('url', 'Debes ingresar una URL de video para este tipo de material.')
-
-        return cleaned_data
+        data = super().clean()
+        if data.get("tipo") == "pdf" and not data.get("archivo"):
+            self.add_error("archivo", "Debes subir un archivo PDF.")
+        if data.get("tipo") == "video" and not data.get("url"):
+            self.add_error("url", "Debes ingresar una URL de video.")
+        return data
 
 
-class CategoriaForm(forms.ModelForm):
-    class Meta:
-        model = Categoria
-        fields = ['nombre', 'color', 'descripcion']
-        widgets = {
-            'nombre': forms.TextInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'Ej: Seguridad Laboral'
-            }),
-            'color': forms.TextInput(attrs={
-                'class': 'w-12 h-12 rounded-lg cursor-pointer border-0',
-                'type': 'color'
-            }),
-            'descripcion': forms.Textarea(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'rows': 3,
-                'placeholder': 'Descripción breve de la categoría...'
-            }),
-        }
+class CategoriaForm(FormularioDiccionario):
+    nombre = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    color = forms.CharField(
+        initial="#6366f1",
+        widget=forms.TextInput(attrs={"type": "color", "class": "w-12 h-12 rounded-lg"}),
+    )
+    descripcion = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 3}),
+    )
 
 
-class ClaseForm(forms.ModelForm):
-    class Meta:
-        model = Clase
-        fields = ['titulo', 'contenido', 'orden']
-        widgets = {
-            'titulo': forms.TextInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'Ej: Introducción a los Primeros Auxilios'
-            }),
-            'orden': forms.NumberInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': '1',
-                'min': '1'
-            }),
-        }
+class ClaseForm(FormularioDiccionario):
+    titulo = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    contenido = forms.CharField(widget=forms.Textarea(attrs={"class": INPUT_CLASS, "rows": 10}))
+    orden = forms.IntegerField(min_value=1, widget=forms.NumberInput(attrs={"class": INPUT_CLASS}))
+
+    def __init__(self, *args, clases=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.clases = clases or []
 
     def clean_orden(self):
-        orden = self.cleaned_data.get('orden')
-        if orden is not None and orden < 1:
-            raise forms.ValidationError('El orden debe ser mayor a 0.')
-        return orden
-
-    def clean(self):
-        cleaned_data = super().clean()
-        titulo = cleaned_data.get('titulo')
-        orden = cleaned_data.get('orden')
-        curso_obj = cleaned_data.get('curso')
-        if not curso_obj:
-            curso_obj = getattr(self.instance, 'curso', None)
-        curso_id = curso_obj.pk if curso_obj else None
-
-        if titulo and orden and curso_id:
-            qs = Clase.objects.filter(curso_id=curso_id, orden=orden)
-            if self.instance.pk:
-                qs = qs.exclude(pk=self.instance.pk)
-            if qs.exists():
-                raise forms.ValidationError(
-                    {'orden': f'Ya existe una clase con orden {orden} en este curso.'}
-                )
-
-        return cleaned_data
+        order = self.cleaned_data["orden"]
+        current_id = self.instance_data.get("id")
+        if any(item["orden"] == order and item["id"] != current_id for item in self.clases):
+            raise forms.ValidationError(f"Ya existe una clase con orden {order} en este curso.")
+        return order

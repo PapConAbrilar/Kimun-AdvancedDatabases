@@ -35,7 +35,7 @@
             </p>
             <ul class="list-disc list-inside space-y-2 mb-4" style="color: var(--color-text-secondary);">
                 <li>El banco "{{ banco.nombre }}"</li>
-                <li>Todas las preguntas asociadas ({{ banco.preguntas.count }})</li>
+                <li>Todas las preguntas asociadas ({{ banco.preguntas|length }})</li>
                 <li>Todas las alternativas de esas preguntas</li>
             </ul>
             <p class="text-red-600 dark:text-red-400 font-medium">

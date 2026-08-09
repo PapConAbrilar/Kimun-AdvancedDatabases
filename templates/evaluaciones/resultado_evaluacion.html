@@ -51,13 +51,13 @@
         <div class="mt-6 grid grid-cols-2 gap-4 text-center">
             <div class="p-4 rounded-lg" style="background-color: var(--color-bg);">
                 <div class="text-2xl font-bold">
-                    {{ evaluacion.preguntas.count }}
+                    {{ evaluacion.preguntas|length }}
                 </div>
                 <div class="text-sm" style="color: var(--color-text-secondary);">Total preguntas</div>
             </div>
             <div class="p-4 rounded-lg" style="background-color: var(--color-bg);">
                 <div class="text-2xl font-bold">
-                    {% with total=evaluacion.preguntas.count %}
+                    {% with total=evaluacion.preguntas|length %}
                     {% widthratio intento.puntaje_obtenido 100 total as correctas %}
                     {{ correctas }}
                     {% endwith %}
@@ -72,7 +72,7 @@
         
         {% for pregunta in preguntas %}
         {% with user_answer=intento.respuestas|get_item:pregunta.pk %}
-        {% with correct_alt=pregunta.alternativas.all|get_correct_alt %}
+        {% with correct_alt=pregunta.alternativas|get_correct_alt %}
         <div class="mb-4 p-4 rounded-lg" style="background-color: var(--color-bg);">
             <div class="flex items-start gap-3">
                 <div class="w-6 h-6 rounded-full flex items-center justify-center text-sm
@@ -86,7 +86,7 @@
                 <div class="flex-1">
                     <p class="font-medium">{{ pregunta.texto }}</p>
                     <div class="mt-2 text-sm" style="color: var(--color-text-secondary);">
-                        {% for alt in pregunta.alternativas.all %}
+                        {% for alt in pregunta.alternativas %}
                         <div class="flex items-center gap-2">
                             {% if alt.pk|stringformat:"s" == user_answer %}
                                 {% if alt.es_correcta %}

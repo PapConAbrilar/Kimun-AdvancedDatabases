@@ -42,6 +42,14 @@ celerybeat-schedule
 htmlcov/
 .tox/
 
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
 # venv
 venv/
 

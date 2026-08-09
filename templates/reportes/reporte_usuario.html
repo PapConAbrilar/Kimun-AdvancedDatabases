@@ -34,15 +34,15 @@
         </div>
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Cursos Inscritos</p>
-            <p class="text-xl font-bold">{{ inscripciones.count }}</p>
+            <p class="text-xl font-bold">{{ inscripciones|length }}</p>
         </div>
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Evaluaciones Rendidas</p>
-            <p class="text-xl font-bold">{{ intentos.count }}</p>
+            <p class="text-xl font-bold">{{ intentos|length }}</p>
         </div>
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Certificados</p>
-            <p class="text-xl font-bold">{{ certificados.count }}</p>
+            <p class="text-xl font-bold">{{ certificados|length }}</p>
         </div>
     </div>
 

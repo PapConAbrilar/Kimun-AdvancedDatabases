@@ -26,11 +26,11 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Total Inscritos</p>
-            <p class="text-2xl font-bold">{{ inscripciones.count }}</p>
+            <p class="text-2xl font-bold">{{ inscripciones|length }}</p>
         </div>
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Evaluaciones</p>
-            <p class="text-2xl font-bold">{{ evaluaciones.count }}</p>
+            <p class="text-2xl font-bold">{{ evaluaciones|length }}</p>
         </div>
         <div class="hybrid-card rounded-xl p-5">
             <p class="text-sm" style="color: var(--color-text-secondary);">Estado</p>
@@ -78,7 +78,7 @@
                                 {% else %}Asignado{% endif %}
                             </span>
                         </td>
-                        <td class="text-center py-3 px-4">{{ inscripcion.intentos_count }}/{{ evaluaciones.count }}</td>
+                        <td class="text-center py-3 px-4">{{ inscripcion.intentos_count }}/{{ evaluaciones|length }}</td>
                         <td class="text-center py-3 px-4">
                             {% if inscripcion.aprobado %}
                             <i class="bi bi-check-circle text-green-600 text-xl"></i>

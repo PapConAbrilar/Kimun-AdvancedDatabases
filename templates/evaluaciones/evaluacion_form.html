@@ -155,15 +155,15 @@ function gestionPreguntas() {
     return {
         preguntas: [
             {% if evaluacion %}
-            {% for pregunta in evaluacion.preguntas.all %}
+            {% for pregunta in evaluacion.preguntas %}
             {
                 texto: "{{ pregunta.texto|escapejs }}",
                 alternativas: [
-                    {% for alt in pregunta.alternativas.all %}
+                    {% for alt in pregunta.alternativas %}
                     { texto: "{{ alt.texto|escapejs }}" }{% if not forloop.last %},{% endif %}
                     {% endfor %}
                 ],
-                correctaIndex: {% for alt in pregunta.alternativas.all %}{% if alt.es_correcta %}{{ forloop.counter0 }}{% endif %}{% endfor %}
+                correctaIndex: {% for alt in pregunta.alternativas %}{% if alt.es_correcta %}{{ forloop.counter0 }}{% endif %}{% endfor %}
             }{% if not forloop.last %},{% endif %}
             {% endfor %}
             {% else %}

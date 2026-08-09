@@ -1,60 +1,39 @@
 from django import forms
-from .models import EventoCalendario, TipoEvento
-from cursos.models import Curso
-from datetime import datetime
+
+from kimun.forms import FormularioDiccionario
 
 
-class EventoCalendarioForm(forms.ModelForm):
-    class Meta:
-        model = EventoCalendario
-        fields = ['titulo', 'descripcion', 'tipo', 'fecha_inicio', 'fecha_fin', 'curso', 'color']
-        widgets = {
-            'titulo': forms.TextInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl text-lg',
-                'placeholder': 'Título del evento'
-            }),
-            'descripcion': forms.Textarea(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl',
-                'rows': 3,
-                'placeholder': 'Descripción opcional'
-            }),
-            'tipo': forms.Select(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl'
-            }),
-            'fecha_inicio': forms.DateTimeInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl',
-                'type': 'datetime-local'
-            }, format='%Y-%m-%dT%H:%M'),
-            'fecha_fin': forms.DateTimeInput(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl',
-                'type': 'datetime-local'
-            }, format='%Y-%m-%dT%H:%M'),
-            'curso': forms.Select(attrs={
-                'class': 'input-field w-full px-4 py-3 rounded-xl'
-            }),
-            'color': forms.TextInput(attrs={
-                'class': 'w-12 h-12 rounded-lg cursor-pointer border-0',
-                'type': 'color'
-            }),
-        }
+INPUT_CLASS = "input-field w-full px-4 py-3 rounded-xl"
 
-    def __init__(self, *args, **kwargs):
+
+class EventoCalendarioForm(FormularioDiccionario):
+    titulo = forms.CharField(widget=forms.TextInput(attrs={"class": INPUT_CLASS}))
+    descripcion = forms.CharField(required=False, widget=forms.Textarea(attrs={"class": INPUT_CLASS}))
+    tipo = forms.ChoiceField(
+        choices=[
+            ("clase_deadline", "Plazo de clase"),
+            ("evaluacion_deadline", "Plazo de evaluación"),
+            ("curso_start", "Inicio de curso"),
+            ("curso_end", "Fin de curso"),
+            ("evento_general", "Evento general"),
+        ]
+    )
+    fecha_inicio = forms.DateTimeField(widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
+    fecha_fin = forms.DateTimeField(widget=forms.DateTimeInput(attrs={"type": "datetime-local"}))
+    curso = forms.ChoiceField(required=False)
+    color = forms.CharField(required=False, initial="#6366f1")
+
+    def __init__(self, *args, cursos=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['curso'].required = False
-        self.fields['descripcion'].required = False
-        self.fields['color'].required = False
-        if self.instance and self.instance.fecha_inicio:
-            self.initial['fecha_inicio'] = self.instance.fecha_inicio.strftime('%Y-%m-%dT%H:%M')
-        if self.instance and self.instance.fecha_fin:
-            self.initial['fecha_fin'] = self.instance.fecha_fin.strftime('%Y-%m-%dT%H:%M')
+        courses = cursos or []
+        self.fields["curso"].choices = [("", "Sin curso")] + [
+            (course["id"], course["titulo"]) for course in courses
+        ]
+        self.fields["curso"].queryset = courses
 
     def clean(self):
-        cleaned_data = super().clean()
-        fecha_inicio = cleaned_data.get('fecha_inicio')
-        fecha_fin = cleaned_data.get('fecha_fin')
-
-        if fecha_inicio and fecha_fin:
-            if fecha_fin < fecha_inicio:
-                raise forms.ValidationError('La fecha de fin debe ser posterior a la fecha de inicio.')
-
-        return cleaned_data
+        data = super().clean()
+        if data.get("fecha_inicio") and data.get("fecha_fin"):
+            if data["fecha_fin"] < data["fecha_inicio"]:
+                raise forms.ValidationError("La fecha de fin debe ser posterior al inicio.")
+        return data

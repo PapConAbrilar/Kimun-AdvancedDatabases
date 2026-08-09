@@ -1,138 +1,171 @@
+import logging
+
 import boto3
 from botocore.exceptions import ClientError, EndpointConnectionError
 from django.conf import settings
-import logging
+
 
 logger = logging.getLogger(__name__)
 
+
 class DynamoDBClient:
-    """
-    Cliente centralizado para interactuar con DynamoDB implementando el patron Single-Table.
-    Incluye la logica de Failover Automatico para cumplir con el requisito de 'Botar un Nodo'.
-    """
+    """Acceso centralizado a DynamoDB con escritura dual y failover regional."""
+
     _table_cache = None
+    _active_region = None
+
+    @classmethod
+    def _table_for_region(cls, region, verify=True):
+        table_name = getattr(settings, "DYNAMODB_TABLE_NAME", "KimunData-Demo")
+        table = boto3.resource("dynamodb", region_name=region).Table(table_name)
+        if verify:
+            table.load()
+        return table
+
+    @classmethod
+    def clear_cache(cls):
+        cls._table_cache = None
+        cls._active_region = None
 
     @classmethod
     def get_table(cls):
-        """
-        Retorna la tabla de DynamoDB. Si la region primaria falla (simulacion de caida),
-        salta automaticamente a la region secundaria (Global Tables).
-        """
-        if cls._table_cache:
+        if cls._table_cache is not None:
             return cls._table_cache
 
-        table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
-        primary_region = getattr(settings, 'AWS_REGION_PRIMARY', 'us-east-1')
-        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
+        primary_region = getattr(settings, "AWS_REGION_PRIMARY", "us-east-1")
+        secondary_region = getattr(settings, "AWS_REGION_SECONDARY", "us-west-2")
 
         try:
-            # 1. Intento de conexion al Nodo Primario
-            dynamodb = boto3.resource('dynamodb', region_name=primary_region)
-            table = dynamodb.Table(table_name)
-            
-            # Forzar una llamada a AWS para verificar que la tabla exista fisicamente
-            # Si fue eliminada por el equipo, esto lanzara una excepcion
-            table.load()
-            
-            logger.info(f"Conectado a DynamoDB en region primaria ({primary_region})")
-            cls._table_cache = table
-            return table
+            cls._table_cache = cls._table_for_region(primary_region)
+            cls._active_region = primary_region
+            logger.info("Conectado a DynamoDB en %s", primary_region)
+        except (ClientError, EndpointConnectionError) as error:
+            logger.warning(
+                "No fue posible utilizar DynamoDB en %s: %s. Activando %s.",
+                primary_region,
+                error,
+                secondary_region,
+            )
+            cls._table_cache = cls._table_for_region(secondary_region)
+            cls._active_region = secondary_region
 
-        except (ClientError, EndpointConnectionError) as e:
-            logger.warning(f"Falla detectada en Nodo Primario ({primary_region}). Detalle: {e}")
-            logger.warning(f"--- EJECUTANDO FAILOVER HACIA REGION SECUNDARIA ({secondary_region}) ---")
-            
-            # 2. Conexion de contingencia al Nodo Secundario (Global Tables)
-            dynamodb_replica = boto3.resource('dynamodb', region_name=secondary_region)
-            table_replica = dynamodb_replica.Table(table_name)
-            
-            # Guardamos la tabla secundaria en cache para no seguir intentando la primaria rota
-            cls._table_cache = table_replica
-            return table_replica
+        return cls._table_cache
 
     @classmethod
-    def _execute_with_failover(cls, operation, *args, **kwargs):
+    def _execute_with_failover(cls, operation):
+        primary_region = getattr(settings, "AWS_REGION_PRIMARY", "us-east-1")
+        secondary_region = getattr(settings, "AWS_REGION_SECONDARY", "us-west-2")
+
         try:
-            table = cls.get_table()
-            return operation(table, *args, **kwargs)
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                logger.warning("Tabla cacheada ya no existe (borrada en caliente). Forzando limpieza de caché y reintento con Failover.")
-                cls._table_cache = None
-                table = cls.get_table()
-                return operation(table, *args, **kwargs)
-            raise
+            return operation(cls.get_table())
+        except (ClientError, EndpointConnectionError) as error:
+            code = ""
+            if isinstance(error, ClientError):
+                code = error.response.get("Error", {}).get("Code", "")
+
+            puede_hacer_failover = (
+                cls._active_region == primary_region
+                and (
+                    isinstance(error, EndpointConnectionError)
+                    or code
+                    in {
+                        "ResourceNotFoundException",
+                        "InternalServerError",
+                        "RequestLimitExceeded",
+                        "ThrottlingException",
+                    }
+                )
+            )
+            if not puede_hacer_failover:
+                raise
+
+            logger.warning("Operación fallida en Virginia. Reintentando en Oregon.")
+            cls._table_cache = cls._table_for_region(secondary_region)
+            cls._active_region = secondary_region
+            return operation(cls._table_cache)
+
+    @classmethod
+    def _replicate(cls, operation_name, **kwargs):
+        primary_region = getattr(settings, "AWS_REGION_PRIMARY", "us-east-1")
+        secondary_region = getattr(settings, "AWS_REGION_SECONDARY", "us-west-2")
+        destination = (
+            secondary_region if cls._active_region == primary_region else primary_region
+        )
+
+        try:
+            table = cls._table_for_region(destination, verify=False)
+            getattr(table, operation_name)(**kwargs)
+        except Exception as error:  # La réplica no debe ocultar el resultado principal.
+            logger.warning("No fue posible replicar la operación en %s: %s", destination, error)
 
     @classmethod
     def put_item(cls, item_data):
-        # 1. Escribir en la tabla principal (con reintento de failover)
-        cls._execute_with_failover(lambda t: t.put_item(Item=item_data))
-        
-        # 2. Replicación a nivel de aplicación (Dual-Write)
-        # Esto soluciona la restricción de Learner Lab que nos impidió usar Global Tables nativas.
-        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
-        table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
-        try:
-            dynamodb_replica = boto3.resource('dynamodb', region_name=secondary_region)
-            table_replica = dynamodb_replica.Table(table_name)
-            table_replica.put_item(Item=item_data)
-        except Exception as e:
-            logger.warning(f"Error en replicación dual a {secondary_region}: {e}")
-            
-        return True
+        cls._execute_with_failover(lambda table: table.put_item(Item=item_data))
+        cls._replicate("put_item", Item=item_data)
+        return item_data
 
     @classmethod
     def get_item(cls, pk, sk):
         response = cls._execute_with_failover(
-            lambda t: t.get_item(Key={'PK': pk, 'SK': sk})
+            lambda table: table.get_item(Key={"PK": pk, "SK": sk})
         )
-        return response.get('Item')
+        return response.get("Item")
 
     @classmethod
     def delete_item(cls, pk, sk):
-        cls._execute_with_failover(
-            lambda t: t.delete_item(Key={'PK': pk, 'SK': sk})
-        )
-        
-        # Dual-Delete para la réplica manual
-        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
-        table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
-        try:
-            dynamodb_replica = boto3.resource('dynamodb', region_name=secondary_region)
-            table_replica = dynamodb_replica.Table(table_name)
-            table_replica.delete_item(Key={'PK': pk, 'SK': sk})
-        except Exception as e:
-            logger.warning(f"Error borrando en réplica {secondary_region}: {e}")
-            
+        key = {"PK": pk, "SK": sk}
+        cls._execute_with_failover(lambda table: table.delete_item(Key=key))
+        cls._replicate("delete_item", Key=key)
         return True
 
     @classmethod
     def query_by_pk(cls, pk, sk_prefix=None):
         from boto3.dynamodb.conditions import Key
-        
+
+        condition = Key("PK").eq(pk)
         if sk_prefix:
-            key_condition = Key('PK').eq(pk) & Key('SK').begins_with(sk_prefix)
-        else:
-            key_condition = Key('PK').eq(pk)
-            
-        response = cls._execute_with_failover(
-            lambda t: t.query(KeyConditionExpression=key_condition)
-        )
-        return response.get('Items', [])
+            condition &= Key("SK").begins_with(sk_prefix)
+
+        def query_all(table):
+            items = []
+            params = {"KeyConditionExpression": condition}
+            while True:
+                response = table.query(**params)
+                items.extend(response.get("Items", []))
+                last_key = response.get("LastEvaluatedKey")
+                if not last_key:
+                    return items
+                params["ExclusiveStartKey"] = last_key
+
+        return cls._execute_with_failover(query_all)
 
     @classmethod
     def query_gsi1(cls, gsi1pk, gsi1sk_prefix=None):
         from boto3.dynamodb.conditions import Key
-        
+
+        condition = Key("GSI1PK").eq(gsi1pk)
         if gsi1sk_prefix:
-            key_condition = Key('GSI1PK').eq(gsi1pk) & Key('GSI1SK').begins_with(gsi1sk_prefix)
-        else:
-            key_condition = Key('GSI1PK').eq(gsi1pk)
-            
-        response = cls._execute_with_failover(
-            lambda t: t.query(
-                IndexName='GSI1',
-                KeyConditionExpression=key_condition
-            )
-        )
-        return response.get('Items', [])
+            condition &= Key("GSI1SK").begins_with(gsi1sk_prefix)
+
+        def query_all(table):
+            items = []
+            params = {
+                "IndexName": "GSI1",
+                "KeyConditionExpression": condition,
+            }
+            while True:
+                response = table.query(**params)
+                items.extend(response.get("Items", []))
+                last_key = response.get("LastEvaluatedKey")
+                if not last_key:
+                    return items
+                params["ExclusiveStartKey"] = last_key
+
+        return cls._execute_with_failover(query_all)
+
+    @classmethod
+    def delete_partition(cls, pk, sk_prefix=None):
+        items = cls.query_by_pk(pk, sk_prefix)
+        for item in items:
+            cls.delete_item(item["PK"], item["SK"])
+        return len(items)

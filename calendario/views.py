@@ -1,224 +1,173 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import HttpResponse, HttpResponseBadRequest
-from django.db.models import Q
+import calendar as calendar_module
 from datetime import datetime, timedelta
-import calendar as cal_module
-from .models import EventoCalendario, TipoEvento
+
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden
+from django.shortcuts import redirect, render
+from django.utils import timezone
+
+from calendario.forms import EventoCalendarioForm
+from calendario.repository import CalendarioRepository
+from cursos.repository import CursoRepository, InscripcionRepository
 from usuarios.decorators import docente_or_admin_required
+
+
+def _email(user):
+    return user.email or user.username
+
+
+def _required(value):
+    if not value:
+        raise Http404("Evento no encontrado.")
+    return value
+
+
+def _aware(value):
+    if timezone.is_naive(value):
+        return timezone.make_aware(value)
+    return value
+
+
+def _course_scope(user):
+    if user.rol in {"admin", "docente"}:
+        return None, CursoRepository.get_all_courses()
+    enrollments = InscripcionRepository.list_by_user(_email(user))
+    course_ids = [item["curso_id"] for item in enrollments]
+    return course_ids, [item["curso"] for item in enrollments]
 
 
 @login_required
 def calendario_view(request):
     try:
-        year = int(request.GET.get('year', datetime.now().year))
-        month = int(request.GET.get('month', datetime.now().month))
+        year = int(request.GET.get("year", datetime.now().year))
+        month = int(request.GET.get("month", datetime.now().month))
+        start = _aware(datetime(year, month, 1))
+        last_day = calendar_module.monthrange(year, month)[1]
+        end = _aware(datetime(year, month, last_day, 23, 59, 59))
     except (ValueError, TypeError):
-        return HttpResponseBadRequest('Parámetros de fecha inválidos.')
-
-    prev_month = month - 1 if month > 1 else 12
-    prev_year = year if month > 1 else year - 1
-    next_month = month + 1 if month < 12 else 1
-    next_year = year + 1 if month == 12 else year
-
-    # Calculate days in month and empty days before first day
-    _, last_day = cal_module.monthrange(year, month)
-
-    # Get the weekday of the first day (0=Monday, 6=Sunday)
-    first_weekday = datetime(year, month, 1).weekday()
-
-    # empty_days should be the number of empty cells before day 1
-    # In the template, weekday 0 = Monday. If first_weekday is 0 (Monday), empty_days = 0
-    # If first_weekday is 5 (Saturday), empty_days = 5 (Mon-Fri filled, then start Sat)
-    empty_days = range(first_weekday)
-
-    # days is a list of day numbers 1 to last_day
-    days = list(range(1, last_day + 1))
-
-    # today for highlighting
-    today = datetime.now()
-
-    # Get events for the month (existing code)
-    start_date = datetime(year, month, 1)
-    end_date = datetime(year, month, last_day, 23, 59, 59)
-
-    from cursos.models import Curso, InscripcionCurso
-
-    if request.user.rol in ['admin', 'docente']:
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date)
-        ).select_related('curso', 'evaluacion').order_by('fecha_inicio')
-        cursos = Curso.objects.all().order_by('titulo')
-    else:
-        enrolled_course_ids = InscripcionCurso.objects.filter(
-            usuario=request.user
-        ).values_list('curso_id', flat=True)
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date),
-            Q(curso_id__in=enrolled_course_ids) | Q(curso__isnull=True)
-        ).select_related('curso', 'evaluacion').order_by('fecha_inicio')
-        cursos = Curso.objects.filter(id__in=enrolled_course_ids).order_by('titulo')
-
-    curso_id = request.GET.get('curso')
-    if curso_id:
-        try:
-            curso_id_int = int(curso_id)
-            eventos = eventos.filter(curso_id=curso_id_int)
-        except ValueError:
-            pass
-
-    # Pass all required context variables
-    context = {
-        'eventos': eventos,
-        'day_events': eventos,
-        'year': year,
-        'month': month,
-        'prev_month': prev_month,
-        'prev_year': prev_year,
-        'next_month': next_month,
-        'next_year': next_year,
-        'month_name': cal_module.month_name[month],
-        'empty_days': empty_days,
-        'days': days,
-        'today': today,
-        'cursos': cursos,
-        'curso_id': curso_id,
-    }
-    return render(request, 'calendario/calendario.html', context)
+        return HttpResponseBadRequest("Parámetros de fecha inválidos.")
+    course_ids, courses = _course_scope(request.user)
+    selected_course = request.GET.get("curso")
+    if selected_course:
+        course_ids = [selected_course]
+    events = CalendarioRepository.list_events(course_ids=course_ids, start=start, end=end)
+    return render(
+        request,
+        "calendario/calendario.html",
+        {
+            "eventos": events,
+            "day_events": events,
+            "year": year,
+            "month": month,
+            "prev_month": month - 1 if month > 1 else 12,
+            "prev_year": year if month > 1 else year - 1,
+            "next_month": month + 1 if month < 12 else 1,
+            "next_year": year + 1 if month == 12 else year,
+            "month_name": calendar_module.month_name[month],
+            "empty_days": range(datetime(year, month, 1).weekday()),
+            "days": range(1, last_day + 1),
+            "today": datetime.now(),
+            "cursos": courses,
+            "curso_id": selected_course,
+        },
+    )
 
 
 @login_required
 def calendario_eventos(request):
-    start = request.GET.get('start')
-    end = request.GET.get('end')
-
     try:
-        if start:
-            start_date = datetime.fromisoformat(start)
-        else:
-            start_date = datetime.now().replace(day=1)
-
-        if end:
-            end_date = datetime.fromisoformat(end)
-        else:
-            end_date = start_date + timedelta(days=30)
+        start = datetime.fromisoformat(request.GET.get("start")) if request.GET.get("start") else datetime.now().replace(day=1)
+        end = datetime.fromisoformat(request.GET.get("end")) if request.GET.get("end") else start + timedelta(days=30)
+        start = _aware(start)
+        end = _aware(end)
     except (ValueError, TypeError):
-        return HttpResponseBadRequest('Parámetros de fecha inválidos.')
-    
-    if request.user.rol in ['admin', 'docente']:
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date)
-        ).select_related('curso', 'evaluacion').order_by('fecha_inicio')
-    else:
-        from cursos.models import InscripcionCurso
-        enrolled_course_ids = InscripcionCurso.objects.filter(
-            usuario=request.user
-        ).values_list('curso_id', flat=True)
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date),
-            Q(curso_id__in=enrolled_course_ids) | Q(curso__isnull=True)
-        ).select_related('curso', 'evaluacion').order_by('fecha_inicio')
-    
-    return render(request, 'calendario/partials/eventos_list.html', {'eventos': eventos})
+        return HttpResponseBadRequest("Parámetros de fecha inválidos.")
+    course_ids, _ = _course_scope(request.user)
+    events = CalendarioRepository.list_events(course_ids=course_ids, start=start, end=end)
+    return render(request, "calendario/partials/eventos_list.html", {"eventos": events})
 
 
 @login_required
 @docente_or_admin_required
 def evento_create(request):
-    if request.method == 'POST':
-        from .forms import EventoCalendarioForm
-        form = EventoCalendarioForm(request.POST)
-        if form.is_valid():
-            evento = form.save(commit=False)
-            evento.creado_por = request.user
-            evento.save()
-            messages.success(request, f'Evento "{evento.titulo}" creado exitosamente.')
-            return redirect('calendario:calendario')
-    else:
-        from .forms import EventoCalendarioForm
-        form = EventoCalendarioForm()
-    
-    return render(request, 'calendario/evento_form.html', {'form': form, 'accion': 'crear'})
+    courses = CursoRepository.get_all_courses()
+    form = EventoCalendarioForm(request.POST or None, cursos=courses)
+    if request.method == "POST" and form.is_valid():
+        event = CalendarioRepository.save(
+            {
+                **form.cleaned_data,
+                "curso_id": form.cleaned_data.get("curso", ""),
+                "creado_por_id": _email(request.user),
+            }
+        )
+        messages.success(request, f'Evento "{event["titulo"]}" creado exitosamente.')
+        return redirect("calendario:calendario")
+    return render(request, "calendario/evento_form.html", {"form": form, "accion": "crear"})
 
 
 @login_required
 @docente_or_admin_required
 def evento_edit(request, pk):
-    evento = get_object_or_404(EventoCalendario, pk=pk)
-    
-    if request.user.rol != 'admin' and evento.creado_por != request.user:
-        from django.http import HttpResponseForbidden
-        return HttpResponseForbidden('No tienes permisos para editar este evento.')
-    
-    if request.method == 'POST':
-        from .forms import EventoCalendarioForm
-        form = EventoCalendarioForm(request.POST, instance=evento)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'Evento "{evento.titulo}" actualizado.')
-            return redirect('calendario:calendario')
-    else:
-        from .forms import EventoCalendarioForm
-        form = EventoCalendarioForm(instance=evento)
-    
-    return render(request, 'calendario/evento_form.html', {'form': form, 'evento': evento, 'accion': 'editar'})
+    event = _required(CalendarioRepository.get_event(pk))
+    if request.user.rol != "admin" and event.get("creado_por_id") != _email(request.user):
+        return HttpResponseForbidden("No tienes permisos para editar este evento.")
+    courses = CursoRepository.get_all_courses()
+    initial = {**event, "curso": event.get("curso_id", "")}
+    form = EventoCalendarioForm(request.POST or None, instance=initial, cursos=courses)
+    if request.method == "POST" and form.is_valid():
+        CalendarioRepository.save(
+            {
+                **form.cleaned_data,
+                "curso_id": form.cleaned_data.get("curso", ""),
+                "creado_por_id": event.get("creado_por_id"),
+            },
+            pk,
+        )
+        messages.success(request, "Evento actualizado.")
+        return redirect("calendario:calendario")
+    return render(
+        request,
+        "calendario/evento_form.html",
+        {"form": form, "evento": event, "accion": "editar"},
+    )
 
 
 @login_required
 @docente_or_admin_required
 def evento_delete(request, pk):
-    evento = get_object_or_404(EventoCalendario, pk=pk)
-    
-    if request.user.rol != 'admin' and evento.creado_por != request.user:
-        from django.http import HttpResponseForbidden
-        return HttpResponseForbidden('No tienes permisos para eliminar este evento.')
-    
-    if request.method == 'POST':
-        titulo = evento.titulo
-        evento.delete()
-        messages.success(request, f'Evento "{titulo}" eliminado.')
-        return redirect('calendario:calendario')
-    
-    return render(request, 'calendario/evento_confirm_delete.html', {'evento': evento})
+    event = _required(CalendarioRepository.get_event(pk))
+    if request.user.rol != "admin" and event.get("creado_por_id") != _email(request.user):
+        return HttpResponseForbidden("No tienes permisos para eliminar este evento.")
+    if request.method == "POST":
+        CalendarioRepository.delete(pk)
+        messages.success(request, "Evento eliminado.")
+        return redirect("calendario:calendario")
+    return render(request, "calendario/evento_confirm_delete.html", {"evento": event})
 
 
 @login_required
 def calendario_ical_export(request):
-    start_date = datetime.now()
-    end_date = start_date + timedelta(days=180)
-    
-    if request.user.rol in ['admin', 'docente']:
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date)
-        ).select_related('curso', 'evaluacion')
-    else:
-        from cursos.models import InscripcionCurso
-        enrolled_course_ids = InscripcionCurso.objects.filter(
-            usuario=request.user
-        ).values_list('curso_id', flat=True)
-        eventos = EventoCalendario.objects.filter(
-            Q(fecha_inicio__gte=start_date) & Q(fecha_inicio__lte=end_date),
-            Q(curso_id__in=enrolled_course_ids) | Q(curso__isnull=True)
-        ).select_related('curso', 'evaluacion')
-    
-    lines = [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//Kimun//Training Platform//ES',
-    ]
-    
-    for evento in eventos:
-        lines.append('BEGIN:VEVENT')
-        lines.append(f'UID:{evento.pk}@kimun')
-        lines.append(f'DTSTART:{evento.fecha_inicio.strftime("%Y%m%dT%H%M%S")}')
-        lines.append(f'DTEND:{evento.fecha_fin.strftime("%Y%m%dT%H%M%S")}')
-        lines.append(f'SUMMARY:{evento.titulo}')
-        lines.append(f'DESCRIPTION:{evento.descripcion}')
-        lines.append('END:VEVENT')
-    
-    lines.append('END:VCALENDAR')
-    
-    response = HttpResponse('\r\n'.join(lines), content_type='text/calendar')
-    response['Content-Disposition'] = 'attachment; filename="kimun_eventos.ics"'
+    course_ids, _ = _course_scope(request.user)
+    events = CalendarioRepository.list_events(
+        course_ids=course_ids,
+        start=timezone.now(),
+        end=timezone.now() + timedelta(days=180),
+    )
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Kimun//Training Platform//ES"]
+    for event in events:
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f'UID:{event["id"]}@kimun',
+                f'DTSTART:{event["fecha_inicio"]:%Y%m%dT%H%M%S}',
+                f'DTEND:{event["fecha_fin"]:%Y%m%dT%H%M%S}',
+                f'SUMMARY:{event["titulo"]}',
+                f'DESCRIPTION:{event.get("descripcion", "")}',
+                "END:VEVENT",
+            ]
+        )
+    lines.append("END:VCALENDAR")
+    response = HttpResponse("\r\n".join(lines), content_type="text/calendar")
+    response["Content-Disposition"] = 'attachment; filename="kimun_eventos.ics"'
     return response

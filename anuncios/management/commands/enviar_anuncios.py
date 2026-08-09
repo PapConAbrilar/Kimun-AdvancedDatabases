@@ -1,54 +1,67 @@
 from datetime import timedelta
-from typing import Any, cast
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from anuncios.models import Anuncio
-from cursos.models import InscripcionCurso
+from anuncios.repository import AnuncioRepository
+from cursos.repository import InscripcionRepository
+from usuarios.repository import UsuarioRepository
 
 
 class Command(BaseCommand):
-    help = 'Send emails for newly published announcements'
+    help = "Envía por correo los anuncios publicados durante las últimas 24 horas"
 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true', help='Show what would be sent without sending')
-
-    def handle(self, *args, **options):
-        dry_run = options['dry_run']
-
-        recently_published = cast(Any, Anuncio).objects.filter(
-            publicado=True,
-            fecha_publicacion__gte=timezone.now() - timedelta(hours=24)
+        parser.add_argument(
+            "--simular",
+            action="store_true",
+            help="Muestra los envíos sin mandar correos",
         )
 
-        if not recently_published.exists():
-            self.stdout.write('No announcements to send.')
+    def handle(self, *args, **options):
+        limite = timezone.now() - timedelta(hours=24)
+        anuncios = [
+            item
+            for item in AnuncioRepository.all()
+            if item.get("publicado")
+            and item.get("fecha_publicacion")
+            and item["fecha_publicacion"] >= limite
+        ]
+        if not anuncios:
+            self.stdout.write("No hay anuncios recientes para enviar.")
             return
 
-        for anuncio in recently_published:
-            if anuncio.curso:
-                enrollments = cast(Any, InscripcionCurso).objects.filter(
-                    curso=anuncio.curso,
-                    estado__in=['asignado', 'en_progreso', 'completado']
-                ).select_related('usuario')
-                recipients = [e.usuario.email for e in enrollments if e.usuario.email]
+        for anuncio in anuncios:
+            curso_id = anuncio.get("curso_id")
+            if curso_id:
+                destinatarios = {
+                    item["usuario_id"]
+                    for item in InscripcionRepository.list_by_course(curso_id)
+                    if item.get("estado") in {"asignado", "en_progreso", "completado"}
+                }
             else:
-                User = get_user_model()
-                recipients = list(User.objects.filter(email__isnull=False).exclude(email='').values_list('email', flat=True))
+                destinatarios = {
+                    item["email"]
+                    for item in UsuarioRepository.list_all(active_only=True)
+                    if item.get("email")
+                }
 
-            if dry_run:
-                self.stdout.write(f'[DRY RUN] Would send announcement "{anuncio.titulo}" to {len(recipients)} users')
-            else:
-                for email in recipients:
-                    send_mail(
-                        subject=f'Nuevo anuncio: {anuncio.titulo}',
-                        message=f'{anuncio.titulo}\n\n{anuncio.contenido[:500]}',
-                        from_email=settings.DEFAULT_FROM_EMAIL,
-                        recipient_list=[email],
-                        fail_silently=True,
-                    )
-                self.stdout.write(f'Sent announcement "{anuncio.titulo}" to {len(recipients)} users')
+            if options["simular"]:
+                self.stdout.write(
+                    f'[SIMULACIÓN] "{anuncio["titulo"]}" para {len(destinatarios)} usuarios'
+                )
+                continue
+
+            for correo in destinatarios:
+                send_mail(
+                    subject=f'Nuevo anuncio: {anuncio["titulo"]}',
+                    message=f'{anuncio["titulo"]}\n\n{anuncio.get("contenido", "")[:500]}',
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                    recipient_list=[correo],
+                    fail_silently=True,
+                )
+            self.stdout.write(
+                f'Anuncio "{anuncio["titulo"]}" enviado a {len(destinatarios)} usuarios.'
+            )

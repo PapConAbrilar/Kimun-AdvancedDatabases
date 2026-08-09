@@ -1,73 +1,79 @@
-from django.core.management.base import BaseCommand
-from usuarios.repository import UsuarioRepository
+import random
+
+from django.contrib.auth.hashers import make_password
+from django.core.management.base import BaseCommand, CommandError
+
 from cursos.repository import CursoRepository
 from evaluaciones.repository import EvaluacionRepository
-from django.contrib.auth.hashers import make_password
-import random
-import time
+from usuarios.repository import UsuarioRepository
+
 
 class Command(BaseCommand):
-    help = 'Puebla la tabla de DynamoDB con datos de prueba (100% NoSQL)'
+    help = "Puebla DynamoDB con datos demostrativos de Kimün"
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.WARNING("Iniciando inyección de datos en DynamoDB..."))
-        
+        self.stdout.write("Iniciando carga de datos en DynamoDB...")
         try:
-            # 1. Crear Usuarios
-            self.stdout.write("1. Creando usuarios...")
-            profesor = UsuarioRepository.create_user(
-                email="profesor@kimun.cl",
-                password_hash=make_password("mockhash123"), # Password válido
-                rol="docente",
-                nombre="Profesor Kimun"
+            docente = self._asegurar_usuario(
+                "profesor@kimun.cl", "docente", "Profesor Kimün"
             )
-            
-            alumnos = []
-            for i in range(1, 6):
-                email = f"alumno{i}@kimun.cl"
-                alumno = UsuarioRepository.create_user(
-                    email=email,
-                    password_hash=make_password("mockhash123"),
-                    rol="alumno",
-                    nombre=f"Alumno {i}"
+            estudiantes = [
+                self._asegurar_usuario(
+                    f"alumno{indice}@kimun.cl",
+                    "colaborador",
+                    f"Alumno {indice}",
                 )
-                alumnos.append(email)
-                self.stdout.write(f"   - {email} creado.")
+                for indice in range(1, 6)
+            ]
 
-            # 2. Crear Cursos
-            self.stdout.write("2. Creando cursos (Catálogo)...")
-            cursos_creados = []
-            for i in range(1, 4):
+            evaluaciones = []
+            for indice in range(1, 4):
                 curso = CursoRepository.create_curso(
-                    curso_id=f"CURSO-{i}",
-                    titulo=f"Curso Avanzado de Base de Datos {i}",
-                    descripcion="Aprende NoSQL con DynamoDB",
-                    docente_id=profesor['email'],
-                    estado="publicado"
+                    curso_id=f"CURSO-{indice}",
+                    titulo=f"Curso avanzado de bases de datos {indice}",
+                    descripcion="Aprendizaje práctico de NoSQL con DynamoDB.",
+                    docente_id=docente["email"],
+                    estado="publicado",
                 )
-                cursos_creados.append(curso.id)
-                self.stdout.write(f"   - {curso.titulo} creado.")
+                evaluacion = EvaluacionRepository.save_evaluation(
+                    {
+                        "curso_id": curso["id"],
+                        "titulo": f"Evaluación de {curso['titulo']}",
+                        "descripcion": "Evaluación demostrativa.",
+                        "porcentaje_aprobacion": 60,
+                        "intentos_permitidos": 3,
+                        "creado_por_id": docente["email"],
+                    },
+                    f"EVAL-{curso['id']}",
+                )
+                evaluaciones.append(evaluacion)
+                self.stdout.write(f"  Curso creado: {curso['titulo']}")
 
-            # 3. Crear Intentos de Evaluación (Rendiciones transaccionales)
-            self.stdout.write("3. Generando carga transaccional (Evaluaciones)...")
-            for alumno_email in alumnos:
-                for curso_id in cursos_creados:
-                    # Simulamos que cada alumno rindió una prueba por curso
+            for estudiante in estudiantes:
+                for evaluacion in evaluaciones:
                     puntaje = random.randint(40, 100)
-                    aprobado = puntaje >= 60
                     EvaluacionRepository.guardar_intento(
-                        usuario_email=alumno_email,
-                        evaluacion_id=f"EVAL-{curso_id}",
+                        usuario_email=estudiante["email"],
+                        evaluacion_id=evaluacion["id"],
                         puntaje=puntaje,
-                        aprobado=aprobado,
-                        respuestas={"1": "A", "2": "C", "3": "B"}
+                        aprobado=puntaje >= 60,
+                        respuestas={"1": "A", "2": "C", "3": "B"},
                     )
-                    time.sleep(0.1) # Pequeña pausa para no saturar la capa gratuita
-            self.stdout.write("   - Intentos de evaluación guardados.")
 
-            self.stdout.write(self.style.SUCCESS(
-                "\n¡Seed completado con éxito! La tabla en AWS ahora tiene registros de usuarios, cursos e intentos reales NoSQL."
-            ))
+            self.stdout.write(
+                self.style.SUCCESS("Carga demostrativa completada en DynamoDB.")
+            )
+        except Exception as error:
+            raise CommandError(f"No fue posible cargar los datos: {error}") from error
 
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error al inyectar datos: {str(e)}"))
+    @staticmethod
+    def _asegurar_usuario(email, rol, nombre):
+        existente = UsuarioRepository.get_by_email(email)
+        if existente:
+            return existente
+        return UsuarioRepository.create_user(
+            email=email,
+            password_hash=make_password("mockhash123"),
+            rol=rol,
+            nombre=nombre,
+        )

@@ -54,7 +54,7 @@
 <div class="hybrid-card rounded-2xl p-8 mb-8">
     <h2 class="text-xl font-semibold mb-6 flex items-center justify-between" style="color: var(--color-text);">
         <span><i class="bi bi-question-circle me-2"></i>Preguntas en el banco</span>
-        <span class="text-sm font-normal px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">{{ preguntas.count|default:"0" }} en total</span>
+        <span class="text-sm font-normal px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">{{ preguntas|length }} en total</span>
     </h2>
 
     {% if preguntas %}
@@ -77,7 +77,7 @@
                 </div>
 
                 <div class="space-y-2 mt-4 ml-4">
-                    {% for alternativa in pregunta.alternativas.all %}
+                    {% for alternativa in pregunta.alternativas %}
                         <div class="flex items-center p-3 rounded-lg border {% if alternativa.es_correcta %}bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800/50{% else %}bg-gray-50 border-gray-100 dark:bg-gray-800/50 dark:border-gray-700{% endif %}">
                             <div class="w-6 h-6 rounded-full border flex items-center justify-center me-3 {% if alternativa.es_correcta %}bg-green-500 border-green-500 text-white{% else %}border-gray-300 dark:border-gray-600{% endif %}">
                                 {% if alternativa.es_correcta %}

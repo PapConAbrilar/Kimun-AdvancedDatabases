@@ -70,7 +70,7 @@
                     
                     <div class="flex flex-wrap items-center gap-x-6 gap-y-2 mt-2 text-sm" style="color: var(--color-text-secondary);">
                         <span class="flex items-center gap-1">
-                            <i class="bi bi-card-list"></i> {{ evaluacion.preguntas.count }} preguntas
+                            <i class="bi bi-card-list"></i> {{ evaluacion.preguntas|length }} preguntas
                         </span>
                         <span class="flex items-center gap-1">
                             <i class="bi bi-award"></i> {{ evaluacion.porcentaje_aprobacion }}% aprobación
