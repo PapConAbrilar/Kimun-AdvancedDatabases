@@ -114,6 +114,16 @@ USE_TZ = True
 
 AUTH_USER_MODEL = 'usuarios.Usuario'
 
+# ==========================================
+# Autenticación y Sesiones 100% NoSQL
+# ==========================================
+# Usar DynamoDB para el login en vez de SQLite
+AUTHENTICATION_BACKENDS = [
+    'usuarios.auth_backend.DynamoDBAuthBackend',
+]
+# Guardar sesiones en cookies encriptadas para no usar la tabla django_session en SQL
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
+
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [
     BASE_DIR / 'templates' / 'admin',
