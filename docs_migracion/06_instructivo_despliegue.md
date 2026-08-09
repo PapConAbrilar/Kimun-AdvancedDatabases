@@ -24,7 +24,7 @@ Para que Terraform pueda asignar una llave a la máquina EC2 y luego Ansible pue
 
 ## 2. Despliegue de Infraestructura con Terraform
 
-Terraform leerá los archivos en la carpeta `terraform/` y creará la VPC, la EC2, y las Tablas Globales de DynamoDB.
+Terraform leerá los archivos en la carpeta `terraform/` y creará la VPC, la EC2, y las Tablas de DynamoDB en dos regiones (us-east-1 y us-west-2).
 
 1. Entra a la carpeta de Terraform:
    ```bash
@@ -71,7 +71,7 @@ Ansible se conectará por SSH a esa IP que te dio Terraform, actualizará Ubuntu
 
 ## 4. Limpieza y FinOps (MUY IMPORTANTE)
 
-Como estamos utilizando **DynamoDB Global Tables** (réplicas entre Estados Unidos y Sudamérica), AWS cobrará por transferencia de datos continuamente. Además, AWS Learner Lab tiene un presupuesto estricto de **$50 USD**.
+Como estamos utilizando dos tablas de DynamoDB (réplicas controladas por software entre Virginia y Oregon), AWS cobrará por almacenamiento y peticiones. Además, AWS Learner Lab tiene un presupuesto estricto de **$50 USD**.
 
 **NUNCA dejes la infraestructura corriendo si no la estás usando activamente para probar o presentar.**
 
