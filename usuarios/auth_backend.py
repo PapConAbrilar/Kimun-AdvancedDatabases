@@ -18,11 +18,17 @@ class DynamoDBUser:
         self.pk = item.get('email')  # Django necesita un identificador 'pk'
         self.id = self.pk
         self.email = item.get('email')
+        self.username = self.email  # Requerido por templates que llaman a {{ user.username }}
         self.rol = item.get('rol', 'alumno')
         self.nombre = item.get('nombre', '')
+        self.first_name = self.nombre
+        self.last_name = ''
         self.is_active = item.get('is_active', True)
         self.is_authenticated = True
         self.is_anonymous = False
+
+    def get_full_name(self):
+        return self.nombre
         
     @property
     def is_staff(self):
