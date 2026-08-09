@@ -7,7 +7,7 @@ variable "aws_region_primary" {
 variable "aws_region_secondary" {
   description = "Región secundaria para Global Tables (Nodo 2)"
   type        = string
-  default     = "sa-east-1"
+  default     = "us-west-2"
 }
 
 variable "key_name" {

@@ -23,7 +23,7 @@ class DynamoDBClient:
 
         table_name = getattr(settings, 'DYNAMODB_TABLE_NAME', 'KimunData-Demo')
         primary_region = getattr(settings, 'AWS_REGION_PRIMARY', 'us-east-1')
-        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'sa-east-1')
+        secondary_region = getattr(settings, 'AWS_REGION_SECONDARY', 'us-west-2')
 
         try:
             # 1. Intento de conexion al Nodo Primario

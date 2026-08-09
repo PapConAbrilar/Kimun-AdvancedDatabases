@@ -147,7 +147,7 @@ SUPABASE_KEY = os.environ.get('SUPABASE_KEY')
 # Configuración NoSQL (DynamoDB)
 DYNAMODB_TABLE_NAME = os.environ.get('DYNAMODB_TABLE_NAME', 'KimunData-Demo')
 AWS_REGION_PRIMARY = os.environ.get('AWS_REGION_PRIMARY', 'us-east-1')
-AWS_REGION_SECONDARY = os.environ.get('AWS_REGION_SECONDARY', 'sa-east-1')
+AWS_REGION_SECONDARY = os.environ.get('AWS_REGION_SECONDARY', 'us-west-2')
 
 STORAGES = {
     'default': {
