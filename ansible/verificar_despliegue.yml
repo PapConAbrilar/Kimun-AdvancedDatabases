@@ -1,0 +1,53 @@
+---
+- name: Verificar despliegue de Kimün
+  hosts: all
+  become: yes
+  vars:
+    project_dir: "/opt/kimun"
+    python_bin: "/opt/kimun/venv/bin/python3"
+
+  tasks:
+    - name: Consultar rama desplegada
+      command: git branch --show-current
+      args:
+        chdir: "{{ project_dir }}"
+      register: rama
+      changed_when: false
+
+    - name: Consultar versión desplegada
+      command: git rev-parse --short HEAD
+      args:
+        chdir: "{{ project_dir }}"
+      register: version
+      changed_when: false
+
+    - name: Ejecutar revisión de Django
+      command: "{{ python_bin }} manage.py check"
+      args:
+        chdir: "{{ project_dir }}"
+      changed_when: false
+
+    - name: Consultar estado de los servicios
+      service_facts:
+
+    - name: Verificar servicios activos
+      assert:
+        that:
+          - ansible_facts.services['kimun.service'].state == 'running'
+          - ansible_facts.services['nginx.service'].state == 'running'
+        fail_msg: "Gunicorn o Nginx no está activo."
+        success_msg: "Gunicorn y Nginx están activos."
+
+    - name: Verificar respuesta HTTP local
+      uri:
+        url: http://127.0.0.1/
+        status_code: 200
+        return_content: no
+      register: respuesta_http
+
+    - name: Mostrar resultado del despliegue
+      debug:
+        msg:
+          - "Rama: {{ rama.stdout }}"
+          - "Versión: {{ version.stdout }}"
+          - "HTTP: {{ respuesta_http.status }}"

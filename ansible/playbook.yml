@@ -5,6 +5,7 @@
   vars:
     project_dir: "/opt/kimun"
     repo_url: "https://github.com/PapConAbrilar/Kimun-AdvancedDatabases.git"
+    app_branch: "experimental"
     venv_dir: "/opt/kimun/venv"
     python_bin: "{{ venv_dir }}/bin/python3"
     pip_bin: "{{ venv_dir }}/bin/pip"
@@ -30,7 +31,7 @@
       git:
         repo: "{{ repo_url }}"
         dest: "{{ project_dir }}"
-        version: development
+        version: "{{ app_branch }}"
         force: yes
 
     - name: Crear entorno virtual de Python
