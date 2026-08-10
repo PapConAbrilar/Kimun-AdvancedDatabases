@@ -5,7 +5,7 @@
   vars:
     project_dir: "/opt/kimun"
     repo_url: "https://github.com/PapConAbrilar/Kimun-AdvancedDatabases.git"
-    app_branch: "experimental"
+    app_branch: "examen-bigdata"
     venv_dir: "/opt/kimun/venv"
     python_bin: "{{ venv_dir }}/bin/python3"
     pip_bin: "{{ venv_dir }}/bin/pip"
@@ -80,6 +80,7 @@
           DYNAMODB_TABLE_NAME=KimunData-Demo
           AWS_REGION_PRIMARY=us-east-1
           AWS_REGION_SECONDARY=us-west-2
+          S3_ANALYTICS_BUCKET=kimumdata-demo-analytics
       when: not kimun_env.stat.exists
       no_log: yes
 

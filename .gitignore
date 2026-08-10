@@ -49,6 +49,16 @@ htmlcov/
 *.tfplan
 crash.log
 crash.*.log
+.terraform.lock.hcl
+
+# CodeWhale
+.codewhale/
+
+# Big Data cache
+bigdata/cache/
+
+# Cookies / session leftovers
+cookies.txt
 
 # venv
 venv/

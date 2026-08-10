@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'calendario',
     'tareas',
     'anuncios',
+    'bigdata',
 ]
 
 MIDDLEWARE = [

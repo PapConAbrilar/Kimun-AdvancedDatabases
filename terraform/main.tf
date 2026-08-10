@@ -213,3 +213,56 @@ resource "aws_dynamodb_table" "kimun_data_replica" {
     Region      = "us-west-2"
   }
 }
+
+# ==========================================
+# 5. BIG DATA (S3, Glue, Athena)
+# ==========================================
+
+resource "aws_s3_bucket" "kimun_analytics" {
+  bucket = lower("${var.dynamodb_table_name}-analytics")
+
+  tags = {
+    Name        = "kimun-analytics-bucket"
+    Environment = "Taller-Academico"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "kimun_analytics_lifecycle" {
+  bucket = aws_s3_bucket.kimun_analytics.id
+
+  rule {
+    id     = "expire-old-exports"
+    status = "Enabled"
+    filter {}
+    expiration {
+      days = 30
+    }
+  }
+}
+
+resource "aws_glue_catalog_database" "kimun_bigdata" {
+  name        = "kimun_bigdata"
+  description = "Catálogo de datos para Athena — Kimün Analytics"
+}
+
+resource "aws_athena_workgroup" "kimun_athena" {
+  name        = "kimun-bigdata"
+  description = "Workgroup de Athena para consultas de KPIs de Kimün"
+
+  configuration {
+    enforce_workgroup_configuration    = false
+    publish_cloudwatch_metrics_enabled = true
+
+    result_configuration {
+      output_location = "s3://${aws_s3_bucket.kimun_analytics.id}/athena-results/"
+    }
+  }
+
+  tags = {
+    Environment = "Taller-Academico"
+  }
+}
+
+# La bucket policy pública no es necesaria en Learner Lab: Athena y la EC2
+# comparten el mismo LabRole y acceden por IAM, no por bucket policy.
+# Learner Lab bloquea s3:PutBucketPolicy via BlockPublicAccess.

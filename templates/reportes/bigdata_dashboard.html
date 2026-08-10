@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Big Data — Kimün Analytics{% endblock %}
+
+{% block content %}
+<div x-data="bigdataDashboard({{ charts_json|safe }})" x-init="init()" class="px-4 py-6 max-w-7xl mx-auto">
+
+    <!-- Encabezado -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">📊 Big Data Analytics — ONG ALUMCO</h1>
+            <p class="text-sm text-gray-500 mt-1">
+                KPIs extraídos desde DynamoDB → S3 → AWS Athena &nbsp;|&nbsp;
+                Última exportación: <strong>{{ fecha_export }}</strong>
+            </p>
+        </div>
+        <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+            Athena + DynamoDB
+        </span>
+    </div>
+
+    <!-- Grid de KPIs -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {% for key, kpi in kpis.items %}
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5"
+             x-data="{ open: true }">
+
+            <!-- Título KPI -->
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        KPI #{{ forloop.counter }}: {{ kpi.titulo }}
+                    </h3>
+                    <p class="text-sm text-gray-500 mt-1">{{ kpi.descripcion }}</p>
+                </div>
+                <button @click="open = !open" class="text-gray-400 hover:text-gray-600">
+                    <svg :class="{'rotate-180': open}" class="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Gráfico -->
+            <div x-show="open" class="mb-4">
+                <canvas :id="'chart-{{ key }}'" height="220"></canvas>
+            </div>
+
+            <!-- Decisión de negocio -->
+            <div x-show="open" class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p class="text-sm text-amber-800">
+                    <strong>💡 Decisión de negocio:</strong>
+                    {{ kpi.decision }}
+                </p>
+            </div>
+
+            <!-- Tabla de datos -->
+            <div x-show="open" class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs uppercase bg-gray-50">
+                        <tr>
+                            {% for col in kpi.rows.0.keys %}
+                            <th class="px-3 py-2">{{ col|title|truncatechars:20 }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in kpi.rows|slice:":5" %}
+                        <tr class="border-t border-gray-100">
+                            {% for val in row.values %}
+                            <td class="px-3 py-2">{{ val }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <!-- Footer: pipeline Big Data -->
+    <div class="mt-8 bg-gray-50 rounded-2xl p-5 border border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">🔄 Pipeline Big Data</h3>
+        <div class="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+            <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full font-mono text-xs">DynamoDB</span>
+            <span class="text-gray-400">→</span>
+            <span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full font-mono text-xs">S3 (JSON Lines)</span>
+            <span class="text-gray-400">→</span>
+            <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-mono text-xs">AWS Glue Catalog</span>
+            <span class="text-gray-400">→</span>
+            <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full font-mono text-xs">Amazon Athena</span>
+            <span class="text-gray-400">→</span>
+            <span class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full font-mono text-xs">Dashboard</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">
+            Los datos se exportan con <code>python manage.py exportar_datos_s3</code>.
+            El dashboard muestra datos cacheados o simulados cuando Athena no está disponible.
+        </p>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    function bigdataDashboard(chartsData) {
+        return {
+            charts: {},
+            init() {
+                const self = this;
+                Object.entries(chartsData).forEach(([key, config]) => {
+                    const canvas = document.getElementById('chart-' + key);
+                    if (!canvas || !config.labels || !config.labels.length) return;
+
+                    const ctx = canvas.getContext('2d');
+                    let chartConfig = {};
+
+                    if (config.type === 'pie') {
+                        chartConfig = {
+                            type: 'pie',
+                            data: {
+                                labels: config.labels,
+                                datasets: [{
+                                    data: config.values,
+                                    backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#6366f1', '#8b5cf6'],
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    legend: { position: 'bottom' }
+                                }
+                            }
+                        };
+                    } else if (config.type === 'horizontalBar') {
+                        chartConfig = {
+                            type: 'bar',
+                            data: {
+                                labels: config.labels,
+                                datasets: [{
+                                    label: 'Usuarios',
+                                    data: config.values,
+                                    backgroundColor: '#6366f1',
+                                }]
+                            },
+                            options: {
+                                indexAxis: 'y',
+                                responsive: true,
+                                plugins: {
+                                    legend: { display: false }
+                                }
+                            }
+                        };
+                    } else {
+                        // bar / line por defecto
+                        chartConfig = {
+                            type: 'bar',
+                            data: {
+                                labels: config.labels,
+                                datasets: (config.datasets || []).map((ds, i) => ({
+                                    label: ds.label,
+                                    data: ds.data,
+                                    backgroundColor: ['#6366f1', '#22c55e', '#f59e0b'][i] || '#8b5cf6',
+                                })),
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: { beginAtZero: true }
+                                },
+                                plugins: {
+                                    legend: { position: 'bottom' }
+                                }
+                            }
+                        };
+                    }
+
+                    self.charts[key] = new Chart(ctx, chartConfig);
+                });
+            }
+        };
+    }
+</script>
+{% endblock %}
