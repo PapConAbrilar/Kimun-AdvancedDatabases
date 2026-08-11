@@ -114,6 +114,14 @@ def guardar_cache(data: dict) -> None:
     logger.info("Caché de KPIs guardada en %s", CACHE_FILE)
 
 
+def _kpis_tienen_datos(kpis: dict) -> bool:
+    """Verifica que al menos un KPI tenga filas con datos reales."""
+    for kpi in kpis.values():
+        if kpi.get("rows") and not kpi.get("error"):
+            return True
+    return False
+
+
 def obtener_kpis(forzar_athena: bool = False) -> dict:
     """Obtiene los KPIs (desde caché, Athena, o datos simulados)."""
     # 1. Intentar Athena si se fuerza explícitamente
@@ -121,19 +129,22 @@ def obtener_kpis(forzar_athena: bool = False) -> dict:
         try:
             from bigdata.athena_client import ejecutar_todos_los_kpis
             resultados = ejecutar_todos_los_kpis()
-            cache = {"fecha_export": datetime.now(timezone.utc).isoformat(), "kpis": resultados}
-            guardar_cache(cache)
-            return cache
+            if _kpis_tienen_datos(resultados):
+                cache = {"fecha_export": datetime.now(timezone.utc).isoformat(), "kpis": resultados}
+                guardar_cache(cache)
+                return cache
+            else:
+                logger.warning("Athena devolvió resultados vacíos (¿tablas no creadas?). "
+                               "No se guarda caché para no sobrescribir datos válidos.")
         except Exception as exc:
             logger.warning("Athena no disponible (%s). Usando caché o simulados.", exc)
 
-    # 2. Intentar caché
+    # 2. Intentar caché (solo si tiene datos reales)
     cache = cargar_cache()
-    if cache:
+    if cache and _kpis_tienen_datos(cache.get("kpis", {})):
         return cache
 
-    # 3. Datos simulados como fallback
+    # 3. Datos simulados como fallback (siempre tiene datos)
     logger.info("Usando datos simulados para el dashboard.")
     simulados = _datos_simulados()
-    guardar_cache(simulados)
     return simulados

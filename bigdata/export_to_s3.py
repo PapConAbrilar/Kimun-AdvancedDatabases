@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Archivos de configuración (sin dependencia de Django settings para CLI standalone)
 DYNAMODB_TABLE = os.environ.get("DYNAMODB_TABLE_NAME", "KimunData-Demo")
-S3_BUCKET = os.environ.get("S3_ANALYTICS_BUCKET", "kimun-analytics")
+S3_BUCKET = os.environ.get("S3_ANALYTICS_BUCKET", "kimumdata-demo-analytics")
 AWS_REGION = os.environ.get("AWS_REGION_PRIMARY", "us-east-1")
 
 ENTITY_TYPES = [
