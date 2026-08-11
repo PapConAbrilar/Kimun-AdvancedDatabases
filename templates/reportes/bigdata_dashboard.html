@@ -2,7 +2,8 @@
 {% block title %}Dashboard Big Data — Kimün Analytics{% endblock %}
 
 {% block content %}
-<div x-data='bigdataDashboard({{ charts_json|safe }})' x-init="init()" class="px-4 py-6 max-w-7xl mx-auto">
+<script>window.KPI_CHARTS = {{ charts_json|safe }};</script>
+<div x-data="bigdataDashboard(window.KPI_CHARTS)" x-init="init()" class="px-4 py-6 max-w-7xl mx-auto">
 
     <!-- Encabezado -->
     <div class="flex items-center justify-between mb-6">
