@@ -4,7 +4,7 @@
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>window.KPI_CHARTS = {{ charts_json|safe }};</script>
-<div x-data="bigdataDashboard(window.KPI_CHARTS)" x-init="init()" class="px-4 py-6 max-w-7xl mx-auto">
+<div class="px-4 py-6 max-w-7xl mx-auto">
 
     <!-- Encabezado -->
     <div class="flex items-center justify-between mb-6">
@@ -44,7 +44,7 @@
 
             <!-- Gráfico -->
             <div x-show="open" class="mb-4">
-                <canvas :id="'chart-{{ key }}'" height="220"></canvas>
+                <canvas id="chart-{{ key }}" height="220"></canvas>
             </div>
 
             <!-- Decisión de negocio -->
@@ -106,82 +106,55 @@
 
 {% block extra_js %}
 <script>
-    function bigdataDashboard(chartsData) {
-        return {
-            charts: {},
-            init() {
-                const self = this;
-                Object.entries(chartsData).forEach(([key, config]) => {
-                    const canvas = document.getElementById('chart-' + key);
-                    if (!canvas || !config.labels || !config.labels.length) return;
+(function() {
+    var data = window.KPI_CHARTS;
+    if (!data || typeof Chart === 'undefined') return;
 
-                    const ctx = canvas.getContext('2d');
-                    let chartConfig = {};
+    Object.entries(data).forEach(function(entry) {
+        var key = entry[0], config = entry[1];
+        var canvas = document.getElementById('chart-' + key);
+        if (!canvas || !config.labels || !config.labels.length) return;
 
-                    if (config.type === 'pie') {
-                        chartConfig = {
-                            type: 'pie',
-                            data: {
-                                labels: config.labels,
-                                datasets: [{
-                                    data: config.values,
-                                    backgroundColor: ['#22c55e', '#f59e0b', '#ef4444', '#6366f1', '#8b5cf6'],
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                plugins: {
-                                    legend: { position: 'bottom' }
-                                }
-                            }
-                        };
-                    } else if (config.type === 'horizontalBar') {
-                        chartConfig = {
-                            type: 'bar',
-                            data: {
-                                labels: config.labels,
-                                datasets: [{
-                                    label: 'Usuarios',
-                                    data: config.values,
-                                    backgroundColor: '#6366f1',
-                                }]
-                            },
-                            options: {
-                                indexAxis: 'y',
-                                responsive: true,
-                                plugins: {
-                                    legend: { display: false }
-                                }
-                            }
-                        };
-                    } else {
-                        // bar / line por defecto
-                        chartConfig = {
-                            type: 'bar',
-                            data: {
-                                labels: config.labels,
-                                datasets: (config.datasets || []).map((ds, i) => ({
-                                    label: ds.label,
-                                    data: ds.data,
-                                    backgroundColor: ['#6366f1', '#22c55e', '#f59e0b'][i] || '#8b5cf6',
-                                })),
-                            },
-                            options: {
-                                responsive: true,
-                                scales: {
-                                    y: { beginAtZero: true }
-                                },
-                                plugins: {
-                                    legend: { position: 'bottom' }
-                                }
-                            }
-                        };
-                    }
+        var ctx = canvas.getContext('2d');
+        var cc = {};
 
-                    self.charts[key] = new Chart(ctx, chartConfig);
-                });
-            }
-        };
-    }
+        if (config.type === 'pie') {
+            cc = {
+                type: 'pie',
+                data: {
+                    labels: config.labels,
+                    datasets: [{ data: config.values, backgroundColor: ['#22c55e','#f59e0b','#ef4444','#6366f1','#8b5cf6'] }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            };
+        } else if (config.type === 'horizontalBar') {
+            cc = {
+                type: 'bar',
+                data: {
+                    labels: config.labels,
+                    datasets: [{ label: 'Usuarios', data: config.values, backgroundColor: '#6366f1' }]
+                },
+                options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+            };
+        } else {
+            cc = {
+                type: 'bar',
+                data: {
+                    labels: config.labels,
+                    datasets: (config.datasets || []).map(function(ds, i) {
+                        return {
+                            label: ds.label,
+                            data: ds.data,
+                            backgroundColor: ['#6366f1','#22c55e','#f59e0b'][i] || '#8b5cf6'
+                        };
+                    })
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+            };
+        }
+
+        new Chart(ctx, cc);
+    });
+})();
 </script>
 {% endblock %}
