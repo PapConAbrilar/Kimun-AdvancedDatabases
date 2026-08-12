@@ -218,8 +218,14 @@ resource "aws_dynamodb_table" "kimun_data_replica" {
 # 5. BIG DATA (S3, Glue, Athena)
 # ==========================================
 
+resource "random_string" "s3_suffix" {
+  length  = 6
+  special = false
+  upper   = false
+}
+
 resource "aws_s3_bucket" "kimun_analytics" {
-  bucket = lower("${var.dynamodb_table_name}-analytics")
+  bucket = lower("${var.dynamodb_table_name}-analytics-${random_string.s3_suffix.result}")
 
   tags = {
     Name        = "kimun-analytics-bucket"

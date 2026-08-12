@@ -68,6 +68,14 @@
       when: not kimun_env.stat.exists
       no_log: yes
 
+    - name: Obtener nombre del bucket S3 dinámico desde Terraform
+      local_action:
+        module: command
+        cmd: terraform output -raw s3_analytics_bucket
+        chdir: ../terraform/
+      register: s3_bucket_output
+      run_once: true
+
     - name: Crear configuración privada del servicio
       copy:
         dest: /etc/kimun.env
@@ -80,7 +88,7 @@
           DYNAMODB_TABLE_NAME=KimunData-Demo
           AWS_REGION_PRIMARY=us-east-1
           AWS_REGION_SECONDARY=us-west-2
-          S3_ANALYTICS_BUCKET=kimundata-demo-analytics
+          S3_ANALYTICS_BUCKET={{ s3_bucket_output.stdout }}
       when: not kimun_env.stat.exists
       no_log: yes
 
