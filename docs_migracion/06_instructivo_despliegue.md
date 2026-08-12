@@ -153,15 +153,15 @@ else:
 ```bash
 # 7.1 Exportar DynamoDB → S3
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 \
-    "cd /opt/kimun && S3_ANALYTICS_BUCKET=kimundata-demo-analytics sudo -E /opt/kimun/venv/bin/python3 manage.py exportar_datos_s3 --solo-export"
+    "sudo su -c 'set -a; source /etc/kimun.env; set +a; cd /opt/kimun && /opt/kimun/venv/bin/python3 manage.py exportar_datos_s3 --solo-export'"
 
 # 7.2 Crear tablas Athena (automático, detecta fecha del export)
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 \
-    "cd /opt/kimun && S3_ANALYTICS_BUCKET=kimundata-demo-analytics sudo -E /opt/kimun/venv/bin/python3 manage.py setup_athena_tables"
+    "sudo su -c 'set -a; source /etc/kimun.env; set +a; cd /opt/kimun && /opt/kimun/venv/bin/python3 manage.py setup_athena_tables'"
 
 # 7.3 Ejecutar KPIs contra Athena
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 \
-    "cd /opt/kimun && S3_ANALYTICS_BUCKET=kimundata-demo-analytics sudo -E /opt/kimun/venv/bin/python3 manage.py exportar_datos_s3 --solo-kpis"
+    "sudo su -c 'set -a; source /etc/kimun.env; set +a; cd /opt/kimun && /opt/kimun/venv/bin/python3 manage.py exportar_datos_s3 --solo-kpis'"
 ```
 
 Dashboard: `http://IP_EC2/reportes/bigdata/` (solo admin)
