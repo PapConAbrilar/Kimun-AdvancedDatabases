@@ -20,9 +20,13 @@
 
 | Error | Causa | Solución |
 |-------|-------|----------|
+| `VpcLimitExceeded` | Demasiadas VPCs acumuladas de sesiones anteriores (Learner Lab limita a ~5) | Borrar VPCs viejas: `for vpc in $(aws ec2 describe-vpcs --region us-east-1 --query "Vpcs[?IsDefault==\`false\`].VpcId" --output text); do aws ec2 delete-vpc --vpc-id $vpc --region us-east-1; done` |
 | `InvalidKeyPair.NotFound` | La llave SSH `vockey` no existe en AWS | Ejecutar el script de limpieza pre-vuelo (sección 3 de la guía) que regenera e importa la llave |
 | `ResourceInUseException: Table already exists` | La tabla DynamoDB quedó de una sesión anterior | `aws dynamodb delete-table --table-name KimunData-Demo --region us-east-1` y mismo para `us-west-2` |
-| `BucketAlreadyExists` | El bucket S3 ya existe de otra sesión | `aws s3 rb s3://kimumdata-demo-analytics --force` |
+| `BucketAlreadyExists` | El bucket S3 ya existe | `aws s3 rb s3://kimundata-demo-analytics --force` | | `aws s3 rb s3://kimundata-demo-analytics --force` o `aws s3 rb s3://kimundata-demo-analytics --force` (hay dos nombres posibles por un typo corregido) |
+| `AlreadyExistsException: Database already exists` | La base de datos Glue ya existe | `aws glue delete-database --name kimun_bigdata` |
+| `InvalidRequestException: WorkGroup is already created` | El workgroup de Athena ya existe | `aws athena delete-work-group --work-group kimun-bigdata --recursive-delete-option` |
+| Warning: `Invalid Attribute Combination` en lifecycle | El provider AWS pide `filter {}` explícito | Ya está solucionado. Si aparece, verificar que `main.tf` tiene `filter {}` dentro de la rule del lifecycle |
 | `AlreadyExistsException: Database already exists` | La base de datos Glue ya existe | `aws glue delete-database --name kimun_bigdata` |
 | `InvalidRequestException: WorkGroup is already created` | El workgroup de Athena ya existe | `aws athena delete-work-group --work-group kimun-bigdata --recursive-delete-option` |
 | Warning: `Invalid Attribute Combination` en lifecycle | El provider AWS pide `filter {}` explícito | Ya está solucionado. Si aparece, verificar que `main.tf` tiene `filter {}` dentro de la rule del lifecycle |
@@ -55,7 +59,7 @@
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| `NoSuchBucket` en `export_to_s3` | El bucket S3 no existe o el nombre no coincide | `aws s3 mb s3://kimumdata-demo-analytics --region us-east-1`. También verificar que `S3_ANALYTICS_BUCKET` esté en `/etc/kimun.env` |
+| `NoSuchBucket` en `export_to_s3` | El bucket S3 no existe o el nombre no coincide | `aws s3 mb s3://kimundata-demo-analytics --region us-east-1`. También verificar que `S3_ANALYTICS_BUCKET` esté en `/etc/kimun.env` |
 | `TABLE_NOT_FOUND` en Athena | Las tablas externas no se han creado aún en Athena | Es normal. Ejecutar `bigdata/queries/ddl_tablas_externas.sql` en la consola Athena. Mientras tanto, el dashboard usa datos simulados |
 | Dashboard sin gráficos | Chart.js no cargó antes de que el JS intentara crear los charts | Ya está solucionado (Chart.js carga sync antes del HTML). Si persiste: `ssh ... 'sudo systemctl restart kimun'` y recargar con Ctrl+Shift+R |
 | Dashboard sin datos | El caché guardó resultados vacíos de una ejecución fallida de Athena | `ssh ... "sudo rm -f /opt/kimun/bigdata/cache/kpi_cache.json && sudo systemctl restart kimun"` |
@@ -104,7 +108,7 @@ ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo cat /etc/kimun.env'
 aws dynamodb scan --table-name KimunData-Demo --region us-east-1 --max-items 5
 
 # ¿El bucket S3 existe?
-aws s3 ls s3://kimumdata-demo-analytics/
+aws s3 ls s3://kimundata-demo-analytics/
 
 # Limpiar TODO y empezar de cero
 # (ejecutar sección 3 completa de 06_instructivo_despliegue.md)

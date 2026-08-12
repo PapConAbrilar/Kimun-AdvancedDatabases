@@ -12,7 +12,7 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-S3_BUCKET = os.environ.get("S3_ANALYTICS_BUCKET", "kimumdata-demo-analytics")
+S3_BUCKET = os.environ.get("S3_ANALYTICS_BUCKET", "kimundata-demo-analytics")
 AWS_REGION = os.environ.get("AWS_REGION_PRIMARY", "us-east-1")
 ATHENA_DATABASE = "kimun_bigdata"
 ATHENA_OUTPUT = f"s3://{S3_BUCKET}/athena-results/"

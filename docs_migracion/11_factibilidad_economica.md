@@ -30,7 +30,7 @@ incurrido es $0 (mano de obra académica).
 |----------|---------------|---------------|------|
 | AWS EC2 | t3.small (2 vCPU, 2 GB RAM) | ~$12 USD | Solo encendida durante pruebas y demo (~20 h/mes real) |
 | AWS DynamoDB ×2 | KimunData-Demo (us-east-1 + us-west-2), PAY_PER_REQUEST | ~$2 USD | Almacenamiento mínimo (<10 MB) + RCU/WCU ocasionales |
-| AWS S3 | kimumdata-demo-analytics | ~$0.10 USD | <5 MB de exports JSON Lines comprimidos |
+| AWS S3 | kimundata-demo-analytics | ~$0.10 USD | <5 MB de exports JSON Lines comprimidos |
 | AWS Glue Catalog | 1 base de datos | ~$1 USD | Catálogo para Athena |
 | AWS Athena | ~10 MB escaneados por query | ~$0.50 USD | 5 queries KPI ejecutadas ocasionalmente |
 | **Subtotal infraestructura** | | **~$15.60 USD/mes** | Bien dentro del límite de $50 USD del Learner Lab |
