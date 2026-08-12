@@ -225,7 +225,8 @@ resource "random_string" "s3_suffix" {
 }
 
 resource "aws_s3_bucket" "kimun_analytics" {
-  bucket = lower("${var.dynamodb_table_name}-analytics-${random_string.s3_suffix.result}")
+  bucket        = lower("${var.dynamodb_table_name}-analytics-${random_string.s3_suffix.result}")
+  force_destroy = true
 
   tags = {
     Name        = "kimun-analytics-bucket"
