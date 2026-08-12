@@ -1,7 +1,7 @@
 import logging
 
 import boto3
-from botocore.exceptions import ClientError, EndpointConnectionError
+from botocore.exceptions import ClientError, EndpointConnectionError, ConnectTimeoutError, ReadTimeoutError
 from django.conf import settings
 
 
@@ -66,7 +66,7 @@ class DynamoDBClient:
             puede_hacer_failover = (
                 cls._active_region == primary_region
                 and (
-                    isinstance(error, EndpointConnectionError)
+                    isinstance(error, (EndpointConnectionError, ConnectTimeoutError, ReadTimeoutError))
                     or code
                     in {
                         "ResourceNotFoundException",
