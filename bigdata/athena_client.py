@@ -147,8 +147,7 @@ SELECT
     e.cursotitulo AS curso,
     COUNT(*) AS completados,
     ROUND(AVG(
-        CAST(CAST(e.fecha_completado AS DATE) AS DOUBLE)
-        - CAST(CAST(e.fecha_asignacion AS DATE) AS DOUBLE)
+        CAST(date_diff('day', CAST(e.fecha_asignacion AS DATE), CAST(e.fecha_completado AS DATE)) AS DOUBLE)
     ), 1) AS dias_promedio_completacion
 FROM enrollments e
 WHERE e.estado = 'completado'
