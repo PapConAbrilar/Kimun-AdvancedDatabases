@@ -76,19 +76,38 @@ Tabla con los 5 KPIs:
 - Explicar cada tipo de visualización (barras, pie, horizontal)
 - Mencionar que cada KPI incluye una **decisión de negocio** accionable
 
-### Slide 11 — Costos (AWS Learner Lab)
-Tabla estimada:
+### Slide 11 — Factibilidad Económica
 
+Ver documento completo en `docs_migracion/11_factibilidad_economica.md`.
+
+Resumen de las 7 categorías:
+
+**1. RRHH:** 3 integrantes × $1.5M CLP/mes × 4 meses = $18M CLP (hipotético).
+Desarrollo real: $0 (taller universitario).
+
+**2. Infraestructura Cloud (Learner Lab):**
 | Servicio | Costo/mes |
 |----------|-----------|
 | EC2 t3.small | ~$12 USD |
-| DynamoDB ×2 (PAY_PER_REQUEST) | ~$2 USD |
-| S3 (pocos MB) | ~$0.10 USD |
-| Athena (~10 MB/queries) | ~$0.50 USD |
-| Glue Catalog | ~$1 USD |
-| **Total** | **~$15 USD** |
+| DynamoDB ×2 | ~$2 USD |
+| S3 | ~$0.10 USD |
+| Athena + Glue | ~$1.50 USD |
+| **Total** | **~$15.60 USD** |
 
-Nota: presupuesto máximo de Learner Lab = $50 USD. Holgura de $35 USD para pruebas.
+Presupuesto Learner Lab: $50 USD. Holgura: $34 USD.
+
+**3. Licencias:** $0. Todo el stack es open source (Django, Nginx, Ubuntu,
+Terraform, Ansible, Chart.js).
+
+**4. Operaciones:** ~$160 USD/mes en producción (actualizaciones, bugs,
+monitoreo). En modo académico: $0.
+
+**5. Seguridad:** $0 (certificados SSL vía AWS ACM, configuración en Nginx).
+
+**6. Despliegue:** ~3.5 horas one-time (automatizado con Terraform + Ansible).
+
+**7. Contingencia:** 15-20% sobre operativo anual.
+Producción real estimada: ~$4,032 USD/año total.
 
 ### Slide 12 — Conclusiones
 - Arquitectura 100% cloud, 100% NoSQL, zero SQL residual
