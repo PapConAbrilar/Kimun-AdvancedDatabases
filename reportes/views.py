@@ -1,9 +1,27 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.http import Http404
 from django.shortcuts import render
 from django.utils import timezone
+
+
+def _parse_fecha(value):
+    """Convierte string ISO o datetime Django a datetime aware."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if timezone.is_naive(value):
+            return timezone.make_aware(value)
+        return value
+    # Intentar parsear string
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(str(value)[:19], fmt)
+            return timezone.make_aware(dt)
+        except ValueError:
+            continue
+    return None
 
 from cursos.repository import InscripcionRepository, ProgresoClaseRepository
 from evaluaciones.repository import EvaluacionRepository
@@ -21,7 +39,8 @@ def get_at_risk_students():
         ):
             reason = None
             progress = ProgresoClaseRepository.list_by_user(user["email"])
-            if enrollment["fecha_asignacion"] < now - timedelta(days=7) and not progress:
+            fecha_asig = _parse_fecha(enrollment.get("fecha_asignacion"))
+            if fecha_asig and fecha_asig < now - timedelta(days=7) and not progress:
                 reason = "Sin actividad en 7+ días"
             deadline = enrollment["curso"].get("fecha_limite")
             attempts = [

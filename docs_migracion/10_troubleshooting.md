@@ -69,6 +69,8 @@
 | Dashboard sin gráficos (x-data quote issue) | JSON con comillas dobles dentro de atributo HTML con comillas dobles | Ya solucionado: se usa `<script>window.KPI_CHARTS = ...</script>` en vez de incrustar JSON en atributo `x-data` |
 | Dashboard sin datos (tablas vacías) | a) No hay datos en DynamoDB, o b) caché guardó resultados vacíos de Athena | a) Ejecutar `seed_dynamodb`. b) `sudo rm -f /opt/kimun/bigdata/cache/kpi_cache.json && sudo systemctl restart kimun` |
 | Error 403 en dashboard | Solo rol `admin` accede a `/reportes/bigdata/` | Login con `admin@kimun.cl` / `admin` |
+| 500 en `/reportes/`: `can't compare offset-naive and offset-aware datetimes` | El seed guarda fechas como strings (`"2026-07-15"`), pero la vista intenta compararlas con datetimes de Django | Ya solucionado en `reportes/views.py` con `_parse_fecha()`. Si persiste, copiar `reportes/views.py` actualizado a la EC2 |
+| `scp: stat local "...": No such file or directory` | El comando se ejecutó desde un directorio incorrecto (ej. `ansible/` en vez de la raíz del proyecto) | `cd` a la raíz del proyecto (`Kimun-AdvancedDatabases/`) antes de ejecutar `scp` |
 | KPI 4 muestra solo "Sin área asignada" | El seed no guardaba `areacargo_nombre` en el perfil de usuario | Ya solucionado en `seed_dynamodb.py`: actualiza con `UsuarioRepository.update_user(email, {"areacargo_nombre": area, ...})` |
 | KPI 5 sin datos | `date_diff()` de Athena tiene sintaxis variable entre versiones | Ya solucionado: KPI 5 usa datos estáticos de presentación en `bigdata_views.py`. Los otros 4 KPIs usan datos reales de Athena |
 
@@ -89,8 +91,10 @@
 
 | Error | Causa | Solución |
 |-------|-------|----------|
+| Timeout / conexión caída al refrescar tras `delete-table` | DynamoDB tarda ~5-10s en propagar la eliminación. Las operaciones contra el endpoint muerto se cuelgan | `sleep 10` después del delete antes de refrescar. El código en `dynamodb_client.py` ya maneja `ConnectTimeoutError` y `ReadTimeoutError` como triggers de failover |
 | App no funciona tras eliminar tabla primaria | La tabla de `us-west-2` también fue eliminada o nunca recibió datos (dual-write no funcionó) | Verificar dual-write: crear un curso desde la app, verificar que aparece en ambas regiones con `aws dynamodb scan` |
 | `terraform destroy` no elimina todo | Recursos creados fuera de Terraform (manuales o de sesiones anteriores) | Ejecutar limpieza pre-vuelo completa (sección 3 de la guía) |
+| IP de EC2 cambió y Ansible/SSH no conecta | Cada `terraform apply` asigna una IP pública nueva | Verificar con: `aws ec2 describe-instances --region us-east-1 --filters "Name=tag:Name,Values=Kimun-Web-Server" --query "Reservations[].Instances[].PublicIpAddress" --output text` |
 
 ---
 

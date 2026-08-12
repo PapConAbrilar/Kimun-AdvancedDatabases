@@ -144,6 +144,7 @@ else:
 | `sudo: venv/bin/python3: command not found` | Usar ruta completa: `/opt/kimun/venv/bin/python3` |
 | `ImproperlyConfigured: settings are not configured` | Usar `manage.py shell` (no `python3 -c`) |
 | Login no funciona | 6.2 de nuevo + `sudo systemctl restart kimun` |
+| 500 en `/reportes/` tras re-seed | Las fechas son strings del nuevo seed. El código ya maneja `_parse_fecha()`. Si persiste: copiar `reportes/views.py` actualizado a la EC2 |
 
 ---
 
@@ -183,10 +184,17 @@ Dashboard: `http://IP_EC2/reportes/bigdata/` (solo admin)
 # 1. Mostrar app funcionando
 # 2. Eliminar tabla primaria
 aws dynamodb delete-table --table-name KimunData-Demo --region us-east-1
-# 3. Refrescar navegador → app sigue viva (failover a us-west-2)
-# 4. Restaurar
+# 3. ESPERAR 10 segundos (DynamoDB tarda en propagar la eliminación)
+sleep 10
+# 4. Refrescar navegador → app sigue viva (failover a us-west-2)
+# 5. Restaurar
 cd terraform/ && terraform apply -auto-approve
 ```
+
+| Error | Solución |
+|-------|----------|
+| Timeout al refrescar tras borrar tabla | `sleep 10` después del delete. El código ya maneja `ConnectTimeoutError` como trigger de failover |
+| App no responde en absoluto | La IP de la EC2 puede haber cambiado. Verificar con `aws ec2 describe-instances` |
 
 ---
 
