@@ -75,6 +75,7 @@
         chdir: ../terraform/
       register: s3_bucket_output
       run_once: true
+      become: no
 
     - name: Crear configuración privada del servicio
       copy:
