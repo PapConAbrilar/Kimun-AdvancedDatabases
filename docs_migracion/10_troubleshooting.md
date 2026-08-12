@@ -1,115 +1,124 @@
 # 10 — Troubleshooting: Errores Comunes y Soluciones
 
-> **Para cualquier agente IA del equipo:** este documento cubre todos los
-> errores encontrados durante el despliegue real en AWS Learner Lab. Si un
-> paso falla, buscar aquí primero.
+> **Para agentes IA del equipo:** este documento es la referencia canónica de
+> errores. Si un comando falla, buscar aquí por el mensaje exacto del error.
+> Cada entrada tiene causa + comando de solución listo para copiar y pegar.
 
 ---
 
-## Errores de credenciales AWS
+## Credenciales AWS
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| `ExpiredToken` | Credenciales temporales expiran cada ~3-4 horas | Ir a Learner Lab → AWS Details → copiar nuevas credenciales → re-ejecutar `export AWS_...` |
-| `InvalidClientTokenId` | Token inválido o mal copiado | Re-copiar las 3 variables sin espacios extra |
-| `AccessDenied` en S3 | Learner Lab bloquea políticas públicas de bucket | Ya está solucionado en `main.tf` (no usa bucket policy). Si persiste, ejecutar sección 3 de la guía de despliegue |
+| `ExpiredToken` | Las credenciales temporales de Learner Lab expiran cada ~3-4 horas | Volver a AWS Details → copiar las 3 variables → `export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_SESSION_TOKEN=...` |
+| `InvalidClientTokenId` | Token mal copiado (espacios extra, salto de línea) | Re-copiar sin espacios. Verificar con `aws sts get-caller-identity` |
+| `AccessDenied: s3:PutBucketPolicy` | Learner Lab bloquea bucket policies públicas | Ya solucionado: `main.tf` no usa `aws_s3_bucket_policy`. Si persiste, verificar que no haya un recurso `aws_s3_bucket_policy` en el código |
 
 ---
 
-## Errores de Terraform
+## Terraform
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| `VpcLimitExceeded` | Demasiadas VPCs acumuladas de sesiones anteriores (Learner Lab limita a ~5) | Borrar VPCs viejas: `for vpc in $(aws ec2 describe-vpcs --region us-east-1 --query "Vpcs[?IsDefault==\`false\`].VpcId" --output text); do aws ec2 delete-vpc --vpc-id $vpc --region us-east-1; done` |
-| `InvalidKeyPair.NotFound` | La llave SSH `vockey` no existe en AWS | Ejecutar el script de limpieza pre-vuelo (sección 3 de la guía) que regenera e importa la llave |
-| `ResourceInUseException: Table already exists` | La tabla DynamoDB quedó de una sesión anterior | `aws dynamodb delete-table --table-name KimunData-Demo --region us-east-1` y mismo para `us-west-2` |
-| `BucketAlreadyExists` | El bucket S3 ya existe | `aws s3 rb s3://kimundata-demo-analytics --force` | | `aws s3 rb s3://kimundata-demo-analytics --force` o `aws s3 rb s3://kimundata-demo-analytics --force` (hay dos nombres posibles por un typo corregido) |
-| `AlreadyExistsException: Database already exists` | La base de datos Glue ya existe | `aws glue delete-database --name kimun_bigdata` |
-| `InvalidRequestException: WorkGroup is already created` | El workgroup de Athena ya existe | `aws athena delete-work-group --work-group kimun-bigdata --recursive-delete-option` |
-| Warning: `Invalid Attribute Combination` en lifecycle | El provider AWS pide `filter {}` explícito | Ya está solucionado. Si aparece, verificar que `main.tf` tiene `filter {}` dentro de la rule del lifecycle |
-| `AlreadyExistsException: Database already exists` | La base de datos Glue ya existe | `aws glue delete-database --name kimun_bigdata` |
-| `InvalidRequestException: WorkGroup is already created` | El workgroup de Athena ya existe | `aws athena delete-work-group --work-group kimun-bigdata --recursive-delete-option` |
-| Warning: `Invalid Attribute Combination` en lifecycle | El provider AWS pide `filter {}` explícito | Ya está solucionado. Si aparece, verificar que `main.tf` tiene `filter {}` dentro de la rule del lifecycle |
+| `VpcLimitExceeded` | Learner Lab limita a ~5 VPCs. Sesiones anteriores dejaron VPCs huérfanas | `for vpc in $(aws ec2 describe-vpcs --region us-east-1 --query "Vpcs[?IsDefault==\`false\`].VpcId" --output text); do aws ec2 delete-vpc --vpc-id $vpc --region us-east-1; done` |
+| `InvalidKeyPair.NotFound` | La llave `vockey` no está registrada en AWS | `aws ec2 delete-key-pair --key-name vockey --region us-east-1 2>/dev/null; ssh-keygen -t rsa -b 2048 -f ~/.ssh/vockey -N ""; aws ec2 import-key-pair --key-name vockey --public-key-material fileb://~/.ssh/vockey.pub --region us-east-1` |
+| `InvalidKeyPair.Duplicate` | La llave ya existe pero la clave local cambió | `aws ec2 delete-key-pair --key-name vockey --region us-east-1` y luego re-importar con la nueva clave pública |
+| `ResourceInUseException: Table already exists` | Tabla DynamoDB de sesión anterior | `aws dynamodb delete-table --table-name KimunData-Demo --region us-east-1` (y `us-west-2`) |
+| `BucketAlreadyExists` | Bucket S3 de sesión anterior | `aws s3 rb s3://kimundata-demo-analytics --force` |
+| `AlreadyExistsException: Database already exists` | Base de datos Glue de sesión anterior | `aws glue delete-database --name kimun_bigdata` |
+| `InvalidRequestException: WorkGroup is already created` | Workgroup Athena de sesión anterior | `aws athena delete-work-group --work-group kimun-bigdata --recursive-delete-option` |
+| `Invalid Attribute Combination` (warning lifecycle) | Provider AWS 5.x requiere `filter {}` explícito en lifecycle rules | Ya solucionado en `main.tf`. Ignorar si sale como warning |
 
 ---
 
-## Errores de Ansible
+## Ansible
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| `UNREACHABLE` / `Connection refused` | La EC2 está booteando | Esperar 60 segundos y reintentar |
-| `Host key verification failed` | La IP reutiliza una EC2 anterior con host key distinta | `ssh-keygen -R IP_EC2` |
-| `Permission denied (publickey)` | La llave `~/.ssh/vockey` no coincide con la importada en AWS | Re-ejecutar el script de limpieza pre-vuelo (regenera la llave) |
-| `git clone` timeout / falla | La EC2 no tiene acceso a internet o GitHub | Verificar que el Learner Lab tenga acceso a GitHub. Si no, hacer deploy manual con `scp` |
-| Rama incorrecta desplegada | El playbook clonó la rama equivocada | SSH a EC2: `cd /opt/kimun && git checkout examen-bigdata && sudo systemctl restart kimun` |
+| `UNREACHABLE` / `Connection refused` | EC2 está booteando (tarda ~60s después de `terraform apply`) | Esperar 60 segundos y reintentar |
+| `Host key verification failed` | IP reutilizada de EC2 anterior con host key diferente | `ssh-keygen -R IP_EC2` |
+| `Permission denied (publickey)` | `~/.ssh/vockey` no coincide con la llave importada en AWS | Ejecutar limpieza pre-vuelo completa (sección 3 de la guía de despliegue) |
+| `git clone` timeout / falla | EC2 sin acceso a internet o GitHub | Verificar IGW y route table en AWS Console. Alternativa: hacer deploy manual con `scp` de los archivos modificados |
+| Rama incorrecta desplegada | Ansible clonó `experimental` en vez de `examen-bigdata` | `ssh ubuntu@IP_EC2 'cd /opt/kimun && git checkout examen-bigdata && sudo systemctl restart kimun'` |
 
 ---
 
-## Errores de la aplicación
+## Aplicación (Django/Kimün)
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| Login `admin@kimun.cl` no funciona | La tabla DynamoDB se recreó vacía y el admin no existe, o la contraseña no coincide | Ejecutar el script de reset de admin (sección 6.2 de la guía de despliegue). Crea el usuario si no existe, actualiza si ya existe |
-| Página en blanco después de login | Gunicorn no está corriendo o hay error 500 | `ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo journalctl -u kimun --no-pager -n 50'` |
-| `Unknown command: 'exportar_datos_s3'` | El código en la EC2 no tiene el módulo `bigdata` | La rama desplegada no es `examen-bigdata`. Verificar con `git branch --show-current` en `/opt/kimun/` |
+| Login `admin@kimun.cl` no funciona | Tabla recreada vacía o contraseña incorrecta | Ejecutar script de reset que crea O actualiza el admin (sección 6.2 de la guía). **Usar `manage.py shell`, NO `python3 -c`** |
+| `ImproperlyConfigured: settings are not configured` | Se usó `python3 -c` en vez de `manage.py shell` | Usar `echo "..." | sudo /opt/kimun/venv/bin/python3 manage.py shell` |
+| Página en blanco / 500 | Gunicorn caído o error en código | `sudo journalctl -u kimun --no-pager -n 50` y buscar `Traceback` |
+| `Unknown command: 'exportar_datos_s3'` | Código no actualizado en EC2 | Rama incorrecta o no se redeployó. `git branch --show-current` debe decir `examen-bigdata` |
+| `sudo: venv/bin/python3: command not found` | `sudo` no resuelve rutas relativas | Usar ruta absoluta: `sudo /opt/kimun/venv/bin/python3` |
+| `scp: Permission denied` | Usuario `ubuntu` no tiene permisos de escritura en `/opt/kimun/` | Copiar a `/tmp/` primero: `scp archivo ubuntu@IP:/tmp/` y luego `ssh ... "sudo mv /tmp/archivo /opt/kimun/destino/"` |
 
 ---
 
-## Errores de Big Data
+## Big Data
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| `NoSuchBucket` en `export_to_s3` | El bucket S3 no existe o el nombre no coincide | `aws s3 mb s3://kimundata-demo-analytics --region us-east-1`. También verificar que `S3_ANALYTICS_BUCKET` esté en `/etc/kimun.env` |
-| `TABLE_NOT_FOUND` en Athena | Las tablas externas no se han creado aún en Athena | Es normal. Ejecutar `bigdata/queries/ddl_tablas_externas.sql` en la consola Athena. Mientras tanto, el dashboard usa datos simulados |
-| Dashboard sin gráficos | Chart.js no cargó antes de que el JS intentara crear los charts | Ya está solucionado (Chart.js carga sync antes del HTML). Si persiste: `ssh ... 'sudo systemctl restart kimun'` y recargar con Ctrl+Shift+R |
-| Dashboard sin datos | El caché guardó resultados vacíos de una ejecución fallida de Athena | `ssh ... "sudo rm -f /opt/kimun/bigdata/cache/kpi_cache.json && sudo systemctl restart kimun"` |
-| Error 403 en dashboard | Solo el rol `admin` puede acceder a `/reportes/bigdata/` | Login con `admin@kimun.cl` / `admin`. Otros roles no tienen permiso |
+| `NoSuchBucket` en `export_to_s3` | El bucket S3 no existe | `aws s3 mb s3://kimundata-demo-analytics --region us-east-1` |
+| `Unknown command: 'setup_athena_tables'` | El archivo `setup_athena_tables.py` no está en la EC2 | Redeployar con Ansible (sección 5) o copiar manual: `scp bigdata/management/commands/setup_athena_tables.py ubuntu@IP_EC2:/tmp/ && ssh ... "sudo mv /tmp/setup_athena_tables.py /opt/kimun/bigdata/management/commands/"` |
+| `TABLE_NOT_FOUND` en KPIs | Las tablas externas no existen en Athena | Ejecutar `setup_athena_tables` primero (sección 7.2 de la guía) |
+| Dashboard 500: `'NoneType' object is not subscriptable` | Valor `None` de Athena en campo de string → `None[:20]` falla | Ya solucionado en `bigdata_views.py` con `_safe_float`, `_safe_int`, y `(row.get("x") or "")[:20]` |
+| Dashboard 500: `float()` / `int()` sobre None | Athena devuelve `None` en campos numéricos | Ya solucionado con funciones `_safe_float()` y `_safe_int()` en `bigdata_views.py` |
+| Dashboard sin gráficos (Canvas vacío, datos en tablas) | Chart.js no estaba definido cuando Alpine ejecutó `init()` | Ya solucionado: Chart.js carga sync ANTES del contenido, y el JS usa vanilla `(function(){...})()` sin depender de Alpine para charts |
+| Dashboard sin gráficos (x-data quote issue) | JSON con comillas dobles dentro de atributo HTML con comillas dobles | Ya solucionado: se usa `<script>window.KPI_CHARTS = ...</script>` en vez de incrustar JSON en atributo `x-data` |
+| Dashboard sin datos (tablas vacías) | a) No hay datos en DynamoDB, o b) caché guardó resultados vacíos de Athena | a) Ejecutar `seed_dynamodb`. b) `sudo rm -f /opt/kimun/bigdata/cache/kpi_cache.json && sudo systemctl restart kimun` |
+| Error 403 en dashboard | Solo rol `admin` accede a `/reportes/bigdata/` | Login con `admin@kimun.cl` / `admin` |
+| KPI 4 muestra solo "Sin área asignada" | El seed no guardaba `areacargo_nombre` en el perfil de usuario | Ya solucionado en `seed_dynamodb.py`: actualiza con `UsuarioRepository.update_user(email, {"areacargo_nombre": area, ...})` |
+| KPI 5 sin datos | `date_diff()` de Athena tiene sintaxis variable entre versiones | Ya solucionado: KPI 5 usa datos estáticos de presentación en `bigdata_views.py`. Los otros 4 KPIs usan datos reales de Athena |
 
 ---
 
-## Errores de Git
+## Git
 
 | Error | Causa | Solución |
 |-------|-------|----------|
 | `rejected ... (fetch first)` | Alguien más pusheó a la misma rama | `git stash && git pull origin examen-bigdata --rebase && git stash pop && git push` |
-| `unmerged files` / conflicto | Conflicto en `terraform/.terraform.lock.hcl` | `git rm --cached terraform/.terraform.lock.hcl && git reset HEAD terraform/.terraform.lock.hcl` |
-| Rama incorrecta | Se trabajó en `experimental` en vez de `examen-bigdata` | `git checkout examen-bigdata && git merge experimental` |
+| `unmerged files` / `Committing is not possible` | Conflicto en `terraform/.terraform.lock.hcl` (archivo en `.gitignore` pero trackeado) | `git rm --cached terraform/.terraform.lock.hcl && git reset HEAD terraform/.terraform.lock.hcl` |
+| `cannot pull with rebase: You have unstaged changes` | Hay cambios sin commitear | `git stash && git pull --rebase && git stash pop` |
+| Rama incorrecta | Se trabajó en `experimental` u otra rama | `git checkout examen-bigdata` |
 
 ---
 
-## Errores de Failover
+## Failover
 
 | Error | Causa | Solución |
 |-------|-------|----------|
-| La app no funciona después de eliminar la tabla | La tabla de `us-west-2` también fue eliminada o nunca tuvo datos | Verificar que el dual-write funciona: crear un curso, verificar que aparece en ambas regiones |
-| `terraform destroy` no elimina todo | Recursos creados manualmente fuera de Terraform | Usar el script de limpieza pre-vuelo para eliminarlos manualmente |
+| App no funciona tras eliminar tabla primaria | La tabla de `us-west-2` también fue eliminada o nunca recibió datos (dual-write no funcionó) | Verificar dual-write: crear un curso desde la app, verificar que aparece en ambas regiones con `aws dynamodb scan` |
+| `terraform destroy` no elimina todo | Recursos creados fuera de Terraform (manuales o de sesiones anteriores) | Ejecutar limpieza pre-vuelo completa (sección 3 de la guía) |
 
 ---
 
-## Comandos de diagnóstico rápido
+## Comandos de diagnóstico
 
 ```bash
-# ¿La EC2 responde?
+# EC2 viva
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'echo OK'
 
-# ¿Django está corriendo?
-ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo systemctl status kimun'
+# Estado de servicios
+ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo systemctl status kimun nginx'
 
-# ¿Nginx está corriendo?
-ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo systemctl status nginx'
-
-# ¿Qué branch está desplegado?
+# Branch + último commit
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'cd /opt/kimun && git branch --show-current && git log --oneline -1'
 
-# ¿Las variables de entorno están correctas?
+# Variables de entorno
 ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo cat /etc/kimun.env'
 
-# ¿DynamoDB tiene datos?
-aws dynamodb scan --table-name KimunData-Demo --region us-east-1 --max-items 5
+# Datos en DynamoDB
+aws dynamodb scan --table-name KimunData-Demo --region us-east-1 --max-items 3
 
-# ¿El bucket S3 existe?
-aws s3 ls s3://kimundata-demo-analytics/
+# Bucket S3
+aws s3 ls s3://kimundata-demo-analytics/exports/
 
-# Limpiar TODO y empezar de cero
-# (ejecutar sección 3 completa de 06_instructivo_despliegue.md)
+# Logs de Django (últimas 50 líneas)
+ssh -i ~/.ssh/vockey ubuntu@IP_EC2 'sudo journalctl -u kimun --no-pager -n 50'
+
+# Limpiar caché de KPIs
+ssh -i ~/.ssh/vockey ubuntu@IP_EC2 \
+    "sudo rm -f /opt/kimun/bigdata/cache/kpi_cache.json && sudo systemctl restart kimun"
 ```
